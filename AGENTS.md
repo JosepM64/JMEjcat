@@ -1,25 +1,30 @@
 # JMEJCat — Projecte
 
 ## Descripció
-Notes estructurades portable i offline. Python 3.13 + PySide6 + SQLite.
-- **Versió**: 3.52 | **Data**: 2026-07-19 | **Build**: ~117 MB
+Gestió d'apunts i control d'expedients per a un tramitador d'un jutjat de lo civil (Barcelona). Portable i offline. Python 3.13 + PySide6 + SQLite (WAL).
+- **Versió**: 3.53 | **Data**: 2026-08-25 | **Build**: ~110 MB
+- **Repo**: https://github.com/JosepM64/JMEjcat (públic, branch `main`)
 
 ## Estructura
 ```
 JMEJCat/
-├── jmejcat.py              # Entry point
+├── jmejcat.py              # Entry point (lock instància única, logging, excepthook)
 ├── config.py               # Constants, APP_VERSION
-├── backup_manager.py       # Backup logic
+├── ui_window.py            # MainWindow (composta amb 8 mixins del paquet ui/)
 ├── database.py             # Notes DB (hereda BaseDatabase)
 ├── tramitacio_database.py  # Tramitació DB (upsert, alarmes, manteniment)
+├── tramitacio_window.py    # Finestra de tramitació (taula, filtres, export CSV/PDF)
 ├── tramitacio_alarms.py    # Finestra d'alarmes cronològiques
-├── core/base_database.py   # BaseDatabase compartida
-├── ui/                     # UI modular
-├── pdf_exporter.py         # Export PDF
+├── backup_manager.py       # Backups via API sqlite3 (snapshot WAL consistent)
+├── core/base_database.py   # BaseDatabase compartida (WAL, FK, connexió persistent)
+├── ui/                     # 8 mixins UI + tramitacio_edit_dialog
+├── pdf_exporter.py         # Export PDF (QThread)
 ├── md_exporter.py          # Export Markdown
+├── image_manager.py        # Imatges (thumbnails, SHA256)
+├── calculator.py           # Calculadora despeses/diferència de pagaments
 ├── query.js                # Consultes externes (better-sqlite3)
-├── CHANGELOG.md            # Historial de canvis
-└── data/                   # BD portables + imatges
+├── CHANGELOG.md            # Historial complet de canvis
+└── data/                   # BD portables + imatges (NO al repo; es crea sola al 1r arrencada)
 ```
 
 ## Com executar
@@ -54,20 +59,21 @@ node query.js i <note_id>                # Imatges
 node query.js c all                      # Checkpoint WAL
 ```
 
-## Últimes 4 versions
+## Últimes versions
+- **v3.53 (2026-08-25)**: build PyInstaller sense dades privades ni codi font (spec `datas` només assets); backups BD via API sqlite3 (`Connection.backup`, snapshot consistent amb WAL viu); descripció oficial (tramitador jutjat civil); projecte publicat a GitHub
 - **v3.52**: Fix ID nulls a Tramitació + protecció _get_tramit_id
 - **v3.51**: Finestra edició tramit +50%, camp Info +50%
 - **v3.5**: Finestra Tramitació +50%, edició usa update_tramit en lloc de merge
 - **v3.44**: UPsert tramitació (evita duplicats amb consolidació d'info), pantalla d'alarmes cronològiques, eines manteniment BD (Rebuild/VACUUM/Purga/Stats)
-- **v3.43**: Fix editor expandit: closeEvent + autosave capturen canvis de l'expandit, unificació try_close
-- **v3.42**: `busy_timeout` a query.js, `WAL` pragma només en escriptura (fix llegir amb JMEJCat obert)
 
  Versions anteriors: veure `CHANGELOG.md`
 
 ## Regles
 - 4 espais indentació
-- Imports amb `src.*`
 - Sempre `verify_automatica.py` abans de build
+- La versió viu a `config.py` (APP_VERSION); build.bat la llegeix per al README del dist
+- **MAI** afegir `data/` ni `*.py` al bloc `datas` de `JMEJCat.spec` (hi van dades reals d'expedients)
+- Backups de BD sempre via API sqlite3 (`Connection.backup`), mai `shutil.copy2` (WAL en calent)
 
 ## Funcionalitats v3.5+
 - **UPsert Tramitació**: `tramitacio_database.py:upsert_tramit()` consolida info amb separador `--- Dades noves ---`
