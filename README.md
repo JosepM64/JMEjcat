@@ -1,10 +1,10 @@
-# JMEJCat - Aplicación de Notas Estructuradas
+# JMEJCat - Gestión de Apuntes y Expedientes
 
-![Versión](https://img.shields.io/badge/versión-3.21-blue)
+![Versión](https://img.shields.io/badge/versión-3.53-blue)
 ![Python](https://img.shields.io/badge/python-3.13%2B-green)
 ![License](https://img.shields.io/badge/licencia-LGPL%20v3-lightgrey)
 
-JMEJCat es una aplicación de notas estructuradas, portable y offline diseñada para Windows 64-bit. Permite organizar información en un formato estructurado con soporte para imágenes y formato de texto enriquecido.
+JMEJCat es una aplicación de escritorio, portable y offline, diseñada para la **gestión de apuntes y el control de expedientes de un tramitador en un juzgado de lo civil de Barcelona**. Permite organizar la información en formato estructurado, con soporte para imágenes, texto enriquecido y un módulo específico de tramitación de expedientes (número, año, recordatorios y alarmas).
 
 ## 🚀 Características Principales
 

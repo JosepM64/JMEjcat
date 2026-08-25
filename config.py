@@ -15,7 +15,7 @@ APP_VERSION = "3.53"
 APP_AUTHOR = "Josep Maria Tapia Estaragues"
 APP_WEBSITE = "https://www.posicionamientowebysem.com/"
 APP_LICENSE = "LGPL v3"
-APP_DESCRIPTION = "Aplicación de notas estructuradas offline y portable"
+APP_DESCRIPTION = "Gestión de apuntes y control de expedientes de un tramitador en un juzgado civil de Barcelona"
 
 # ============================================================================
 # CONFIGURACIÓN DEL SISTEMA
