@@ -1,0 +1,554 @@
+"""
+Finestra principal de JMEJCat
+Interfície d'usuari amb PySide6
+"""
+
+import logging
+
+from PySide6.QtWidgets import (
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QSplitter,
+    QLineEdit,
+    QTextEdit,
+    QListWidget,
+    QLabel,
+    QPushButton,
+    QMessageBox,
+)
+from PySide6.QtGui import (
+    QFontMetrics,
+    QDesktopServices,
+    QShortcut,
+    QKeySequence,
+)
+from PySide6.QtCore import Qt, QUrl, QTimer
+
+from database import Database
+from tramitacio_database import TramitacioDatabase
+from image_manager import ImageManager
+from image_gallery import ImageGallery
+from config import (
+    APP_NAME,
+    APP_VERSION,
+    APP_AUTHOR,
+    APP_WEBSITE,
+    TITLE_MAX_LENGTH,
+    EXAMPLES_MAX_LENGTH,
+    AUTOSAVE_INTERVAL,
+    SPLITTER_SIZES,
+    SOLUTION_STRETCH,
+)
+
+from ui.ui_window_menu import UiWindowMenuMixin
+from ui.ui_window_editor import UiWindowEditorMixin
+from ui.ui_window_formatting import UiWindowFormattingMixin
+from ui.ui_window_notes import UiWindowNotesMixin
+from ui.ui_window_images import UiWindowImagesMixin
+from ui.ui_window_export import UiWindowExportMixin
+from ui.ui_window_backup import UiWindowBackupMixin
+from ui.ui_window_tramitacio import UiWindowTramitacioMixin
+
+logger = logging.getLogger(__name__)
+
+
+class MainWindow(
+    UiWindowMenuMixin,
+    UiWindowEditorMixin,
+    UiWindowFormattingMixin,
+    UiWindowNotesMixin,
+    UiWindowImagesMixin,
+    UiWindowExportMixin,
+    UiWindowBackupMixin,
+    UiWindowTramitacioMixin,
+    QMainWindow,
+):
+    """Finestra principal de l'aplicació."""
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle(f"{APP_NAME} v{APP_VERSION}")
+        self.setGeometry(100, 100, 1200, 700)
+
+        # Inicializar componentes
+        self.db = Database()
+        self.tramit_db = TramitacioDatabase()
+        self.image_manager = ImageManager()
+        self.current_note_id = None
+        self.current_note_modified = False
+        self._loading_note = (
+            False  # Flag per evitar marcar com a modificat durant càrrega
+        )
+        self.progress_dialog = None
+        self.pdf_exporter = None
+        self.autosave_enabled = True
+        self.expand_dialog = None  # Editor expandit de solució (único)
+        self.format_painter_btn = None
+        self.copied_format = [None]
+        self.multi_apply = [False]
+
+        # Timer per autoguardat
+        self.autosave_timer = QTimer()
+        if hasattr(self, "autosave_note"):
+            self.autosave_timer.timeout.connect(self.autosave_note)
+            self.autosave_timer.start(AUTOSAVE_INTERVAL * 1000)
+
+        # Timer per avisos de Tramitació (funciona sempre, finestra oberta o no)
+        self.triggered_reminders = set()
+        self.reminder_timer = QTimer(self)
+        self.reminder_timer.timeout.connect(self.check_tramit_reminders)
+        self.reminder_timer.start(60000)  # cada minut
+        self.snoozed_reminders = {}  # {tramit_id: datetime_when_to_show}
+        self.snooze_all_active = False  # botó "silenciar avui"
+        self.snooze_session_active = False  # botó "silenciar fins reinici"
+
+        # Configurar UI
+        self.setup_ui()
+        self.setup_menu()
+        self.setup_toolbar()
+        self.setup_shortcuts()
+
+        # Cargar datos iniciales
+        self.load_notes()
+
+        # Mostrar estado
+        self.statusBar().showMessage("Llest")
+
+        # Afegir informació d'autor a l'esquerra de la barra d'estat
+        author_label = QLabel(f" {APP_AUTHOR} | v{APP_VERSION} ")
+        author_label.setStyleSheet("color: #666; font-size: 10px;")
+        author_label.setCursor(Qt.PointingHandCursor)
+        author_label.mousePressEvent = lambda e: self.open_website()
+        self.statusBar().addPermanentWidget(author_label)
+
+        logger.info("Finestra principal inicialitzada")
+
+    def setup_ui(self):
+        """Configura la interfície d'usuari."""
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+
+        main_layout = QHBoxLayout(central_widget)
+        main_layout.setContentsMargins(5, 5, 5, 5)
+
+        # Splitter principal
+        splitter = QSplitter(Qt.Horizontal)
+
+        # --- Panel izquierdo: Navegación ---
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(5, 5, 5, 5)
+
+        # Barra de búsqueda
+        search_label = QLabel("Cercar notes:")
+        search_label.setStyleSheet("font-weight: bold;")
+        left_layout.addWidget(search_label)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Escriu per cercar...")
+        self.search_input.textChanged.connect(self.on_search)
+        left_layout.addWidget(self.search_input)
+
+        # Lista de notas
+        notes_label = QLabel("Notes:")
+        notes_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        left_layout.addWidget(notes_label)
+
+        self.notes_list = QListWidget()
+        self.notes_list.setAlternatingRowColors(True)
+        self.notes_list.itemClicked.connect(self.on_note_selected)
+        left_layout.addWidget(self.notes_list, 1)  # Factor de estiramiento
+
+        # Contador
+        self.notes_count_label = QLabel("0 notes")
+        self.notes_count_label.setStyleSheet("color: #666; font-style: italic;")
+        left_layout.addWidget(self.notes_count_label)
+
+        # Botón nueva nota
+        new_note_btn = QPushButton("➕ Nova Nota")
+        new_note_btn.clicked.connect(self.new_note)
+        new_note_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 8px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        left_layout.addWidget(new_note_btn)
+
+        splitter.addWidget(left_panel)
+
+        # --- Panel derecho: Editor ---
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(10, 10, 10, 10)
+
+        # Título
+        title_label = QLabel("Títol:")
+        title_label.setStyleSheet("font-weight: bold;")
+        right_layout.addWidget(title_label)
+
+        self.title_input = QLineEdit()
+        self.title_input.setMaxLength(TITLE_MAX_LENGTH)
+        self.title_input.textChanged.connect(self.on_title_changed)
+        self.title_input.textEdited.connect(self.on_title_edited)
+        right_layout.addWidget(self.title_input)
+
+        # Petición
+        request_label = QLabel("Petició:")
+        request_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        right_layout.addWidget(request_label)
+
+        self.request_edit = QTextEdit()
+        self.request_edit.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.request_edit.customContextMenuRequested.connect(
+            lambda pos: self.show_editor_context_menu(self.request_edit, pos)
+        )
+        self.request_edit.textChanged.connect(self.on_content_changed)
+        self.request_edit.installEventFilter(self)
+        right_layout.addWidget(self.request_edit, 1)  # Una mica més petit
+
+        # Atajo Shift+F3 para cambiar entre modos de mayúsculas/minúsculas
+        self.request_case_shortcut = QShortcut(
+            QKeySequence("Shift+F3"), self.request_edit
+        )
+        self.request_case_shortcut.setContext(Qt.ShortcutContext.WidgetShortcut)
+        self.request_case_shortcut.activated.connect(self.cycle_selected_text_case)
+
+        # Solución
+        solution_label = QLabel("Solució:")
+        solution_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        right_layout.addWidget(solution_label)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addWidget(solution_label)
+        btn_layout.addStretch()
+
+        self.expand_solution_btn = QPushButton("⬜")
+        self.expand_solution_btn.setFixedSize(30, 25)
+        self.expand_solution_btn.setToolTip("Ampliar editor")
+        self.expand_solution_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        self.expand_solution_btn.clicked.connect(self.expand_solution_editor)
+        btn_layout.addWidget(self.expand_solution_btn)
+
+        right_layout.addLayout(btn_layout)
+
+        self.solution_edit = QTextEdit()
+        self.solution_edit.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.solution_edit.customContextMenuRequested.connect(
+            lambda pos: self.show_editor_context_menu(self.solution_edit, pos)
+        )
+        # Habilitar tabuladors com a espais
+        self.solution_edit.setTabStopDistance(
+            QFontMetrics(self.solution_edit.font()).horizontalAdvance(" ") * 4
+        )
+        self.solution_edit.textChanged.connect(self.on_content_changed)
+        self.solution_edit.installEventFilter(self)
+        right_layout.addWidget(
+            self.solution_edit, SOLUTION_STRETCH
+        )  # Molt més espai per solució (abans 12)
+
+        # Atajo Shift+F3 para cambiar entre modos de mayúsculas/minúsculas
+        self.solution_case_shortcut = QShortcut(
+            QKeySequence("Shift+F3"), self.solution_edit
+        )
+        self.solution_case_shortcut.setContext(Qt.ShortcutContext.WidgetShortcut)
+        self.solution_case_shortcut.activated.connect(self.cycle_selected_text_case)
+
+        # Atajo Ctrl+Shift+E para expandir el editor
+        self.expand_solution_shortcut = QShortcut(
+            QKeySequence("Ctrl+Shift+E"), self.solution_edit
+        )
+        self.expand_solution_shortcut.setContext(Qt.ShortcutContext.WidgetShortcut)
+        self.expand_solution_shortcut.activated.connect(self.expand_solution_editor)
+
+        # Ejemplos
+        examples_label = QLabel("Exemples:")
+        examples_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        right_layout.addWidget(examples_label)
+
+        self.examples_edit = QLineEdit()
+        self.examples_edit.setMaxLength(EXAMPLES_MAX_LENGTH)
+        self.examples_edit.textChanged.connect(self.on_content_changed)
+        right_layout.addWidget(self.examples_edit)
+
+        # Galería de imágenes
+        self.image_gallery = ImageGallery()
+        self.image_gallery.image_clicked.connect(self.open_image_viewer)
+        self.image_gallery.image_delete_requested.connect(self.delete_image)
+        self.image_gallery.image_move_up_requested.connect(self.move_image_up)
+        self.image_gallery.image_move_down_requested.connect(self.move_image_down)
+        right_layout.addWidget(self.image_gallery)
+
+        # Botón para añadir imagen
+        self.add_image_btn = QPushButton("📷 Afegir Imatge")
+        self.add_image_btn.clicked.connect(self.add_image)
+        self.add_image_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 8px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #0b7dda;
+            }
+        """)
+        right_layout.addWidget(self.add_image_btn)
+
+        splitter.addWidget(right_panel)
+
+        # Configurar proporciones del splitter
+        splitter.setSizes(list(SPLITTER_SIZES))
+
+        main_layout.addWidget(splitter)
+
+    def show_stats(self):
+        """Mostra estadístiques de l'aplicació."""
+        stats = self.db.get_stats()
+
+        # Obtener uso de disco de imágenes
+        original_size, thumbs_size = self.image_manager.get_disk_usage()
+
+        message = f"""
+        📊 Estadísticas de JMEJCat
+
+        📝 Notas: {stats["note_count"]}
+        🖼️ Imágenes: {stats["image_count"]}
+
+        💾 Tamaño base de datos: {stats["db_size"] / 1024:.1f} KB
+        💿 Imágenes originales: {original_size / 1024:.1f} KB
+        📱 Thumbnails: {thumbs_size / 1024:.1f} KB
+
+        📅 Actividad reciente:
+        """
+
+        for activity in stats["recent_activity"][:5]:  # Últimos 5 días
+            message += f"  {activity['date']}: {activity['count']} notas\n"
+
+        QMessageBox.information(self, "Estadístiques", message.strip())
+
+    def show_about(self):
+        """Mostra el diàleg 'Quant a'."""
+        from PySide6.QtCore import qVersion
+        import PIL
+        import sqlite3
+        import sys
+
+        pyside_version = qVersion()
+        pillow_version = PIL.__version__
+        sqlite_version = sqlite3.sqlite_version
+        python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+
+        about_text = f"""
+        <h2>{APP_NAME}</h2>
+        <p><b>Versió:</b> {APP_VERSION}</p>
+        <p><b>Autor:</b> {APP_AUTHOR}</p>
+        <p><b>Web:</b> <a href="{APP_WEBSITE}">{APP_WEBSITE}</a></p>
+        <p><b>Secció:</b> Secció Civil del TI de Barcelona. Plaça núm. 46</p>
+
+        <p>Aplicació de notes estructurades offline i portable.</p>
+
+        <h3>Característiques:</h3>
+        <ul>
+            <li>Notes amb títol, petició, solució i exemples</li>
+            <li>Format de text enriquit (negreta, cursiva, subratllat)</li>
+            <li>Gestió d'imatges amb miniatures</li>
+            <li>Cerca instantània</li>
+            <li>Sistema de backups automàtics</li>
+            <li>Portable i offline</li>
+        </ul>
+
+        <h3>Tecnologies:</h3>
+        <ul>
+            <li>Python {python_version}</li>
+            <li>PySide6 {pyside_version}</li>
+            <li>SQLite {sqlite_version}</li>
+            <li>Pillow {pillow_version}</li>
+        </ul>
+
+        <p>Llicència: LGPL v3</p>
+        """
+
+        QMessageBox.about(self, f"Quant a {APP_NAME}", about_text)
+
+    def open_docs(self):
+        """Obre la documentació."""
+        QMessageBox.information(
+            self,
+            "Documentació",
+            "La documentació està inclosa als fitxers del projecte.\n"
+            "Consulta els fitxers README.md i TECHNICAL_MANIFEST.md",
+        )
+
+    # --- Funcions de Manteniment BD Tramitació ---
+
+    def _get_tramit_db(self):
+        """Obté la instància de TramitacioDatabase."""
+        if hasattr(self, "tramit_db") and self.tramit_db:
+            return self.tramit_db
+        from tramitacio_database import TramitacioDatabase
+        return TramitacioDatabase()
+
+    def maintenance_rebuild_indexes(self):
+        """Reconstrueix els índexs de la BD de Tramitació."""
+        reply = QMessageBox.question(
+            self,
+            "Rebuild Índexs",
+            "Vols reconstruir els índexs de la BD de Tramitació?\n\n"
+            "Això pot trigar una estona amb molts registres.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                db = self._get_tramit_db()
+                result = db.rebuild_indexes()
+                QMessageBox.information(self, "Rebuild completat", result)
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Error reconstruint índexs:\n{e}")
+
+    def maintenance_update_stats(self):
+        """Actualitza les estadístiques de la BD de Tramitació."""
+        try:
+            db = self._get_tramit_db()
+            result = db.update_statistics()
+            QMessageBox.information(self, "Estadístiques", result)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error actualitzant estadístiques:\n{e}")
+
+    def maintenance_purge(self):
+        """Elimina registres antics de la BD de Tramitació."""
+        from PySide6.QtWidgets import QInputDialog
+        days, ok = QInputDialog.getInt(
+            self,
+            "Purga de dades",
+            "Eliminar registres amb més de N dies:",
+            365, 30, 3650
+        )
+        if not ok:
+            return
+        reply = QMessageBox.question(
+            self,
+            "Confirmar purga",
+            f"Vols eliminar els registres actualitzats fa més de {days} dies?\n\n"
+            "Aquesta acció és irreversible.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                db = self._get_tramit_db()
+                deleted = db.purge_old_records(days)
+                QMessageBox.information(
+                    self, "Purga completada",
+                    f"S'han eliminat {deleted} registres."
+                )
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Error en la purga:\n{e}")
+
+    def maintenance_vacuum(self):
+        """Optimitza l'espai de la BD de Tramitació."""
+        reply = QMessageBox.question(
+            self,
+            "VACUUM",
+            "Vols optimitzar la BD de Tramitació?\n\n"
+            "Això redueix l'espai utilitzat però pot trigar una estona.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                db = self._get_tramit_db()
+                result = db.vacuum()
+                QMessageBox.information(self, "VACUUM completat", result)
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Error executant VACUUM:\n{e}")
+
+    def maintenance_show_stats(self):
+        """Mostra estadístiques de la BD de Tramitació."""
+        try:
+            db = self._get_tramit_db()
+            stats = db.get_database_stats()
+            message = f"""
+📊 Estadístiques BD Tramitació
+
+📝 Total registres: {stats['total_records']}
+📋 Duplicats: {stats['duplicates']}
+💾 Mida fitxer: {stats['file_size_mb']} MB
+
+🎨 Per color:
+"""
+            for color, count in stats['by_color'].items():
+                message += f"  • {color}: {count}\n"
+            message += "\n📅 Per any:\n"
+            for year, count in stats['by_year'].items():
+                message += f"  • {year}: {count}\n"
+            QMessageBox.information(self, "Estadístiques BD", message.strip())
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error obtenint estadístiques:\n{e}")
+
+    def open_website(self):
+        """Obre la web de l'autor."""
+        QDesktopServices.openUrl(QUrl(APP_WEBSITE))
+
+    def closeEvent(self, event):
+        """Evento al cerrar la ventana."""
+        # Comprovar editor expandit abans de res
+        if not self._close_expanded_if_open():
+            event.ignore()
+            return
+
+        # Preguntar si guardar canvis
+        if self.current_note_modified:
+            msgBox = QMessageBox(self)
+            msgBox.setWindowTitle("Canvis sense desar")
+            msgBox.setText("Vols desar els canvis abans de sortir?")
+            msgBox.setStandardButtons(
+                QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel
+            )
+            msgBox.setButtonText(QMessageBox.Yes, "Sí")
+            msgBox.setButtonText(QMessageBox.No, "No")
+            msgBox.setButtonText(QMessageBox.Cancel, "Cancel·lar")
+            reply = msgBox.exec()
+
+            if reply == QMessageBox.Yes:
+                self.save_note()
+            elif reply == QMessageBox.Cancel:
+                event.ignore()
+                return
+
+        # Realizar backup
+        from backup_manager import BackupManager
+
+        try:
+            BackupManager.backup_database()
+            logger.info("Backup realizado al cerrar")
+        except Exception as e:
+            logger.warning(f"Error realizando backup al cerrar: {e}")
+
+        logger.info("Aplicació tancada")
+        # Tancar connexions BD
+        if hasattr(self, "db"):
+            self.db.close()
+        if hasattr(self, "tramit_db"):
+            self.tramit_db.close()
+        event.accept()

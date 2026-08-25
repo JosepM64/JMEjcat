@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+.ruff_cache/
+
+# Dades de l'app i logs (mai al repo)
+data/
+logs/
+*.log
+jmejcat_crash.log
+
+# Bases de dades (arrel i qualsevol subcarpeta)
+*.db
+*.db-shm
+*.db-wal
+
+# Artefactes de build
+build/
+dist/
+
+# Node (eina query.js)
+node_modules/
+
+# Backups manuals previs a git
+backups/
+
+# OS
+Thumbs.db
+desktop.ini

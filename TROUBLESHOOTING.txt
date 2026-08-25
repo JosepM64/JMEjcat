@@ -1,0 +1,32 @@
+SI LA APLICACION NO INICIA (JMEJCat v2.5)
+========================================
+
+1. VERIFICA LA CARPETA:
+   - La aplicacion NO debe estar en una carpeta con espacios o caracteres especiales.
+   - Recomendado: Copiar a "C:\Apps\JMEJCat\" (sin espacios).
+   - Asegurar permisos de escritura en la carpeta.
+
+2. DEPENDENCIAS REQUERIDAS:
+   - Microsoft Visual C++ Redistributable 2015-2022 (x64).
+     Descargar desde: https://aka.ms/vs/17/release/vc_redist.x64.exe
+   - Instalar si no esta presente.
+
+3. ARCHIVOS DE LOG:
+   - Si la aplicacion falla, busca logs en:
+        JMEJCat/logs/              (logs de depuracion)
+        JMEJCat/jmejcat_crash.log  (errores criticos)
+   - Envia estos archivos al desarrollador para diagnostico.
+
+4. EJECUTAR COMO ADMINISTRADOR:
+   - Intenta ejecutar "JMEJCat.exe" como Administrador (clic derecho).
+
+5. ANTIVIRUS:
+   - Algunos antivirus bloquean ejecutables recien compilados.
+   - Agrega la carpeta JMEJCat a las excepciones del antivirus.
+
+6. ERROR COMUN: "Permission denied: base_library.zip"
+   - Causa: La carpeta tiene espacios o esta en una unidad de red.
+   - Solucion: Mover la aplicacion a una carpeta local sin espacios.
+
+7. CONTACTO:
+   - Para soporte, proporciona los archivos de log mencionados.

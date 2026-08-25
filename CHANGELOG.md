@@ -1,0 +1,64 @@
+# Changelog - JMEJCat
+
+## v3.53 (2026-08-25)
+
+### Fix: Build sense dades privades ni codi font
+- **JMEJCat.spec**: Els blocs `datas` incloïen `data/jmejcat.db`, `data/tramitacio.db`, `data/images` i tots els `.py` del projecte dins de cada build (`dist/JMEJCat/_internal/`)
+- **Risc**: Les dades personals reals i el codi font s'incrustaven a cada executable distribuït
+- **Solució**: Només s'empaqueta `assets/`; l'aplicació crea `data/` al costat de l'exe en el primer arrencada (`utils.setup_data_directories`)
+
+### Fix: Backups segurs amb BD en calent (WAL)
+- **backup_manager.py**: `backup_database()` copiava les BD amb `shutil.copy2` mentre SQLite treballava en mode WAL, podent produir backups incomplets o trencats
+- **Solució**: S'usa l'API de backup de SQLite (`Connection.backup`), que genera un snapshot consistent que inclou el contingut pendent del WAL
+- **Verificat**: Prova funcional correcta (86 notes + 369 tràmits exportats íntegrament)
+
+---
+
+## v3.52 (2026-07-23)
+
+### Millora finestra Edició Tràmit
+- **Mida augmentada**: Finestra d'edició individual amplada a 1050×600 (igual que la llista de Tramitació)
+- **Camp Color reubicat**: El selector de Color s'ha mougit del formulari principal a la barra de botons, situated entre "Establir avís" i "Guardar" per allunyada espai vertical al formulari
+- **Disformació original mantenida**: La disposició vertical dels camps (Número, Any, Data, Info) s'ha preservat tal com estava originalment
+- **Botons sense canvis**: Manté els botons originals (Calculadora, Alarmes, Guardar, Cancel·lar) sense afegir ni eliminar cap
+
+---
+
+## v3.51 (2026-07-19)
+
+### Millora finestra Tramitació
+- Finestra un 50% més gran (1050×750)
+- Edició d'expedients ara usa `update_tramit` (reemplaça info) en lloc de `upsert_tramit` (mergeja)
+
+### Fix Bloqueig info a Tramitació
+- **Bug**: El mètode `_merge_info` retornava `old_info` quan `new_info` era buit, impedint esborrar el camp Info
+- **Afectava**: Dades inserides manualment per SQL o blocs acumulats no es podien treure des del programa
+- **Solució**: Quan l'usuari neteja el camp Info, ara es guarda buit correctament
+
+## v3.44 (2026-07-07)
+
+### Nou: Sistema d'UPERT per Tramitació
+- **Evitar duplicats**: Quan es crea un tràmit amb número+any que ja existeix, es mostra diàleg de confirmació per actualitzar
+- **Consolidació d'info**: Si es confirma la fusió, l'info antiga es manté i la nova s'afegeix amb separador `--- Dades noves ---`
+- **Índex UNIQUE**: S'afegit restricció UNIQUE a `(numero, any)` per integritat a nivell de BD
+- **Migració automàtica**: Els duplicats existents es consoliden a l'iniciar l'aplicació
+
+### Nou: Pantalla d'Alarmes
+- **Llistat cronològic**: Nova finestra amb totes les alarmes ordenades per data
+- **Indicador d'estat**: Color segons proximitat (vermell=passada, groc=avui, taronja≤3 dies, verd>3 dies)
+- **Filtre**: Checkbox per mostrar/ocultar alarmes passades
+- **Accés ràpid**: Doble clic o botó per obrir el tràmit associat
+- **Botó "⏰ Alarmes"**: Afegit a la barra de botons de Tramitació
+
+### Nou: Eines de Manteniment BD
+Menú **Ajuda → Manteniment BD Tramitació** amb:
+- **Rebuild Índexs**: Reconstrueix tots els índexs (REINDEX)
+- **Actualitzar Estadístiques**: Optimitza consultes (ANALYZE)
+- **Purga Dades Antigues**: Elimina registres amb més de N dies
+- **VACUUM**: Redueix l'espai utilitzat
+- **Estadístiques BD**: Mostra resum de registres, mida, duplicats
+
+---
+
+## v3.43
+- Versió anterior (sense changelog documentat)
