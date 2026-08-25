@@ -1,5 +1,14 @@
 # Changelog - JMEJCat
 
+## v3.56 (2026-08-25)
+
+### Fix: Zoom (Ctrl +/-) a totes les finestres
+- **Bug**: Els dreceres Ctrl + / Ctrl - / Ctrl 0 només funcionaven amb la finestra principal en focus; a l'editor expandit de Solució i a la finestra de Tramitació no feien res
+- **Solució**: Els dreceres ara usen context **d'aplicació** (`Qt.ApplicationShortcut`): actius des de qualsevol finestra del programa
+- El canvi de mida s'aplica a totes les finestres obertes simultàniament
+
+---
+
 ## v3.55 (2026-08-25)
 
 ### Fix: Visor d'imatges — límit estàndard del 100%

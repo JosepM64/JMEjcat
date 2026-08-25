@@ -542,7 +542,9 @@ class MainWindow(
     # --- Zoom global de la UI ---
 
     def setup_zoom_shortcuts(self):
-        """Dreceres de zoom: Ctrl++ / Ctrl+= augmenta, Ctrl+- redueix, Ctrl+0 restaura."""
+        """Dreceres de zoom: Ctrl++ / Ctrl+= augmenta, Ctrl+- redueix, Ctrl+0 restaura.
+        Context d'aplicació: funcionen també dins l'editor expandit de Solució
+        i la finestra de Tramitació, no només a la finestra principal."""
         for seq, fn in (
             ("Ctrl++", self.zoom_ui_in),
             ("Ctrl+=", self.zoom_ui_in),
@@ -550,6 +552,7 @@ class MainWindow(
             ("Ctrl+0", self.zoom_ui_reset),
         ):
             shortcut = QShortcut(QKeySequence(seq), self)
+            shortcut.setContext(Qt.ApplicationShortcut)
             shortcut.activated.connect(fn)
 
     def _apply_ui_font(self):
