@@ -560,6 +560,12 @@ class MainWindow(
         font = QApplication.font()
         font.setPointSize(self._ui_font_pt)
         QApplication.setFont(font)
+        # Els QTextEdit guarden la font dins del document (defaultFont) i no
+        # segueixen la font de l'app un cop creats: cal actualitzar-los a mà.
+        for w in QApplication.allWidgets():
+            if isinstance(w, QTextEdit):
+                w.setFont(font)
+                w.document().setDefaultFont(font)
         QSettings("JMEJCat", "JMEJCat").setValue("ui_font_pt", self._ui_font_pt)
 
     def zoom_ui_in(self):

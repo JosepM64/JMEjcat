@@ -2,7 +2,7 @@
 
 ## Descripció
 Gestió d'apunts i control d'expedients per a un tramitador d'un jutjat de lo civil (Barcelona). Portable i offline. Python 3.13 + PySide6 + SQLite (WAL).
-- **Versió**: 3.56 | **Data**: 2026-08-25 | **Build**: ~110 MB
+- **Versió**: 3.57 | **Data**: 2026-08-25 | **Build**: ~110 MB
 - **Repo**: https://github.com/JosepM64/JMEjcat (públic, branch `main`)
 
 ## Estructura
@@ -60,6 +60,7 @@ node query.js c all                      # Checkpoint WAL
 ```
 
 ## Últimes versions
+- **v3.57 (2026-08-25)**: el zoom també escala el text dels editors (QTextEdit.document().setDefaultFont a _apply_ui_font — el defaultFont no segueix la font de l'app)
 - **v3.56 (2026-08-25)**: zoom Ctrl +/- amb context d'aplicació — funciona també a l'editor expandit de Solució i la finestra de Tramitació
 - **v3.55 (2026-08-25)**: visor "ajustar" limitat al 100% (mai ampliar → nitidesa); cerca amb %/_ literal (ESCAPE); recordatoris accepten dates ISO qualssevol; fora doble closeEvent a Tramitació; ajuda "Quant a" amb dreceres; llibreries al dia
 - **v3.54 (2026-08-25)**: zoom global UI (Ctrl +/-/0 + menú Opcions, persistent); fix visor fullscreen (re-fit en redimensionar); fix lock obsolet (comprova si el PID és viu); fora processEvents del thread PDF; verify 49/49

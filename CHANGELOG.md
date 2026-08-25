@@ -1,5 +1,15 @@
 # Changelog - JMEJCat
 
+## v3.57 (2026-08-25)
+
+### Fix: El zoom ara també escala el text dels editors
+- **Bug**: Amb Ctrl +/- creixien els menús i etiquetes, però el text **dins dels editors** (Solució, editor expandit) restava igual
+- **Causa**: Els QTextEdit guarden la font dins del document (`QTextDocument.defaultFont`) i no segueixen la font de l'aplicació un cop creats
+- **Solució**: En aplicar el zoom s'actualitza explícitament la font de tots els editors oberts (finestra principal, editor expandit)
+- Nota: el text amb format explícit (mida de lletra aplicada manualment des de la paleta) manté la seva mida — és inherent al text enriquit
+
+---
+
 ## v3.56 (2026-08-25)
 
 ### Fix: Zoom (Ctrl +/-) a totes les finestres
