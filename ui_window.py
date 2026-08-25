@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QMessageBox,
+    QApplication,
 )
 from PySide6.QtGui import (
     QFontMetrics,
@@ -24,7 +25,7 @@ from PySide6.QtGui import (
     QShortcut,
     QKeySequence,
 )
-from PySide6.QtCore import Qt, QUrl, QTimer
+from PySide6.QtCore import Qt, QUrl, QTimer, QSettings
 
 from database import Database
 from tramitacio_database import TramitacioDatabase
@@ -109,6 +110,20 @@ class MainWindow(
         self.setup_menu()
         self.setup_toolbar()
         self.setup_shortcuts()
+
+        # Zoom global de la UI (Ctrl + / Ctrl - / Ctrl 0), persistent entre sessions
+        base_pt = QApplication.font().pointSize()
+        self._base_font_pt = base_pt if base_pt and base_pt > 0 else 10
+        try:
+            saved_pt = int(
+                QSettings("JMEJCat", "JMEJCat")
+                .value("ui_font_pt", self._base_font_pt)
+            )
+        except (TypeError, ValueError):
+            saved_pt = self._base_font_pt
+        self._ui_font_pt = max(7, min(20, saved_pt))
+        self._apply_ui_font()
+        self.setup_zoom_shortcuts()
 
         # Cargar datos iniciales
         self.load_notes()
@@ -509,6 +524,50 @@ class MainWindow(
     def open_website(self):
         """Obre la web de l'autor."""
         QDesktopServices.openUrl(QUrl(APP_WEBSITE))
+
+    # --- Zoom global de la UI ---
+
+    def setup_zoom_shortcuts(self):
+        """Dreceres de zoom: Ctrl++ / Ctrl+= augmenta, Ctrl+- redueix, Ctrl+0 restaura."""
+        for seq, fn in (
+            ("Ctrl++", self.zoom_ui_in),
+            ("Ctrl+=", self.zoom_ui_in),
+            ("Ctrl+-", self.zoom_ui_out),
+            ("Ctrl+0", self.zoom_ui_reset),
+        ):
+            shortcut = QShortcut(QKeySequence(seq), self)
+            shortcut.activated.connect(fn)
+
+    def _apply_ui_font(self):
+        """Aplica la mida de lletra global i la desa a QSettings."""
+        font = QApplication.font()
+        font.setPointSize(self._ui_font_pt)
+        QApplication.setFont(font)
+        QSettings("JMEJCat", "JMEJCat").setValue("ui_font_pt", self._ui_font_pt)
+
+    def zoom_ui_in(self):
+        """Augmenta la mida de lletra de tota l'aplicació."""
+        if self._ui_font_pt < 20:
+            self._ui_font_pt += 1
+            self._apply_ui_font()
+            self.statusBar().showMessage(
+                f"Mida de lletra: {self._ui_font_pt} pt (Ctrl+0 per restaurar)"
+            )
+
+    def zoom_ui_out(self):
+        """Redueix la mida de lletra de tota l'aplicació."""
+        if self._ui_font_pt > 7:
+            self._ui_font_pt -= 1
+            self._apply_ui_font()
+            self.statusBar().showMessage(
+                f"Mida de lletra: {self._ui_font_pt} pt (Ctrl+0 per restaurar)"
+            )
+
+    def zoom_ui_reset(self):
+        """Restaura la mida de lletra per defecte."""
+        self._ui_font_pt = self._base_font_pt
+        self._apply_ui_font()
+        self.statusBar().showMessage("Mida de lletra restaurada")
 
     def closeEvent(self, event):
         """Evento al cerrar la ventana."""

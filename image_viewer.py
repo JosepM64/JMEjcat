@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 from PySide6.QtGui import QPixmap, QPainter
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
 
 logger = logging.getLogger(__name__)
@@ -121,10 +121,22 @@ class ImageViewer(QDialog):
         layout.addLayout(toolbar)
         self.setLayout(layout)
 
-        self.fit_to_screen()
+        # Mode ajustat a pantalla: qualsevol redimensió (maximitzar, F11)
+        # recalcularà l'escala. El zoom manual el desactiva.
+        self._fit_mode = True
+        # El primer ajust es fa a showEvent: aquí el viewport encara no té mida real.
 
-        # Doble clic per ajustar a pantalla
-        self.view.setMouseTracking(True)
+    def showEvent(self, event):
+        """Primer ajust quan la finestra ja té la mida real."""
+        super().showEvent(event)
+        if self._fit_mode:
+            QTimer.singleShot(0, self.fit_to_screen)
+
+    def resizeEvent(self, event):
+        """Re-ajusta la imatge en redimensionar (inclou pantalla completa)."""
+        super().resizeEvent(event)
+        if self._fit_mode:
+            self.fit_to_screen()
 
     def show_previous(self):
         """Mostra la imatge anterior."""
@@ -168,24 +180,28 @@ class ImageViewer(QDialog):
 
     def zoom_in(self):
         """Aumenta el zoom."""
+        self._fit_mode = False
         self.zoom_level *= 1.2
         self.view.resetTransform()
         self.view.scale(self.zoom_level, self.zoom_level)
 
     def zoom_out(self):
         """Disminuye el zoom."""
+        self._fit_mode = False
         self.zoom_level /= 1.2
         self.view.resetTransform()
         self.view.scale(self.zoom_level, self.zoom_level)
 
     def reset_zoom(self):
         """Restaura el zoom original."""
+        self._fit_mode = False
         self.zoom_level = 1.0
         self.view.resetTransform()
         self.view.scale(self.zoom_level, self.zoom_level)
 
     def fit_to_screen(self):
         """Ajusta la imatge a la pantalla."""
+        self._fit_mode = True
         if self.pixmap.isNull():
             return
 
@@ -207,10 +223,6 @@ class ImageViewer(QDialog):
         self.view.resetTransform()
         self.view.scale(self.zoom_level, self.zoom_level)
 
-    def mouseDoubleClickEvent(self, event):
-        """Doble clic per ajustar a pantalla."""
-        self.fit_to_screen()
-
     def toggle_fullscreen(self):
         """Canvia entre mode pantalla completa i normal."""
         if self.isFullScreen():
@@ -228,7 +240,7 @@ class ImageViewer(QDialog):
             super().keyPressEvent(event)
 
     def eventFilter(self, obj, event):
-        """Captura eventos de wheel para zoom con Ctrl+wheel."""
+        """Captura eventos de wheel para zoom con Ctrl+wheel y doble clic per ajustar."""
         if event.type() == event.Type.Wheel:
             modifiers = event.modifiers()
             if modifiers == Qt.KeyboardModifier.ControlModifier:
@@ -237,4 +249,7 @@ class ImageViewer(QDialog):
                 else:
                     self.zoom_out()
                 return True
+        if event.type() == event.Type.MouseButtonDblClick:
+            self.fit_to_screen()
+            return True
         return super().eventFilter(obj, event)

@@ -123,21 +123,21 @@ def verify_ui_classes(result: VerificationResult):
     """Verifica clases UI"""
     print("[3/8] Clases UI...")
 
+    # Classes repartides entre fitxers després de la refactorització a mixins
+    class_checks = [
+        ("ui_window.py", "class MainWindow", "MainWindow"),
+        ("image_viewer.py", "class ImageViewer", "ImageViewer"),
+        ("image_gallery.py", "class ImageGallery", "ImageGallery"),
+    ]
+    for fname, pattern, desc in class_checks:
+        if os.path.exists(fname) and pattern in read_file(fname):
+            result.add_pass("UI", desc)
+        else:
+            result.add_fail("UI", f"{desc} no encontrado")
+
     ui_file = "ui_window.py"
     if os.path.exists(ui_file):
         content = read_file(ui_file)
-
-        classes = [
-            ("class ImageViewer", "ImageViewer"),
-            ("class ImageGallery", "ImageGallery"),
-            ("class MainWindow", "MainWindow"),
-        ]
-
-        for pattern, desc in classes:
-            if pattern in content:
-                result.add_pass("UI", desc)
-            else:
-                result.add_fail("UI", f"{desc} no encontrado")
 
         # Verificar métodos importantes
         methods = [

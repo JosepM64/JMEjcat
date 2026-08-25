@@ -113,16 +113,45 @@ except Exception as e:
 
 logger = logging.getLogger(__name__)
 
-# Comprovar instància única (optimizado)
-lock_file = Path.home() / ".jmejcat.lock"
-if lock_file.exists():
+# Comprovar instància única
+# Un lock antic (crash) no ha de bloquejar l'arrencada: només bloqueja si el
+# PID del lock encara és un procés JMEJCat viu.
+def _is_jmejcat_running(pid: int) -> bool:
+    """Comprova si el PID pertany a un procés JMEJCat viu (Windows)."""
     try:
-        with open(lock_file, "r") as f:
-            pid = f.read().strip()
-        print(f"JMEJCat ya está ejecutando (PID: {pid})!")
-        sys.exit(0)
+        kernel32 = ctypes.windll.kernel32
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        handle = kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid)
+        )
+        if not handle:
+            return False
+        try:
+            buf = ctypes.create_unicode_buffer(512)
+            size = ctypes.c_uint(512)
+            if kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+                return "jmejcat" in Path(buf.value).name.lower()
+            return True  # no hem pogut saber el nom; assumim que és viu
+        finally:
+            kernel32.CloseHandle(handle)
     except Exception:
-        pass  # Si hay error, continuamos
+        return True  # davant el dubte, no arrisquem dues instàncies
+
+
+lock_file = Path.home() / ".jmejcat.lock"
+try:
+    if lock_file.exists():
+        old_pid = lock_file.read_text().strip()
+        if old_pid.isdigit() and _is_jmejcat_running(int(old_pid)):
+            print(f"JMEJCat ya está ejecutando (PID: {old_pid})!")
+            sys.exit(0)
+        # Lock obsolet: el procés ja no existeix (crash) o el PID es reutilitzà
+        lock_file.unlink(missing_ok=True)
+        logger.info(f"Lock obsolet eliminat (PID anterior: {old_pid})")
+except SystemExit:
+    raise
+except Exception:
+    pass  # No bloquegem l'arrencada per un error de lock
 
 # Crear lock file
 try:

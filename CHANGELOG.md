@@ -1,5 +1,30 @@
 # Changelog - JMEJCat
 
+## v3.54 (2026-08-25)
+
+### Nou: Zoom global de la interfície
+- **Ctrl +** / **Ctrl -**: augmenta/redueix la mida de lletra de tota l'app (útil en portàtils)
+- **Ctrl 0**: restaura la mida normal; també disponible al menú Opcions
+- La preferència es recorda entre sessions (QSettings)
+
+### Fix: Visor d'imatges a pantalla completa
+- **Bug**: En anar a pantalla completa (⛶ / F11) la imatge es quedava a la mida anterior, centrada i sense créixer
+- **Solució**: Qualsevol redimensió de la finestra (pantalla completa, maximitzar) recàlcula l'ajust automàticament
+- El primer ajust ara es fa quan la finestra ja té la mida real; doble clic sobre la imatge = ajustar a pantalla
+- Zoom manual (botons, Ctrl+roda) desactiva el re-ajust fins que es premi ⊞
+
+### Fix: Lock d'instància única
+- **Bug**: Si l'app crashjava, el fitxer `.jmejcat.lock` bloquejava totes les arrencades següents (calia `tancar_jmejcat.bat`)
+- **Solució**: Només bloqueja si el PID del lock encara és un procés JMEJCat viu; si és obsolet, s'esborra i continua
+
+### Fix: Exportació PDF
+- Eliminades crides `processEvents()` des del thread d'exportació (anti-patró; el progrés ja arriba via signals)
+
+### Fix: Verificació automàtica
+- `verify_automatica.py` actualitzat a l'arquitectura actual: **49/49 verificacions superades** (abans 47 amb 2 fallos per classes mogudes de fitxer)
+
+---
+
 ## v3.53 (2026-08-25)
 
 ### Fix: Build sense dades privades ni codi font

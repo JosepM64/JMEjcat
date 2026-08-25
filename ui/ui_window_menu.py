@@ -150,6 +150,20 @@ class UiWindowMenuMixin:
         self.autosave_action.triggered.connect(self.toggle_autosave)
         view_menu.addAction(self.autosave_action)
 
+        # Zoom global de la UI
+        view_menu.addSeparator()
+        zoom_in_action = QAction("🔍 Augmentar mida\tCtrl++", self)
+        zoom_in_action.triggered.connect(self.zoom_ui_in)
+        view_menu.addAction(zoom_in_action)
+
+        zoom_out_action = QAction("🔎 Reduir mida\tCtrl+-", self)
+        zoom_out_action.triggered.connect(self.zoom_ui_out)
+        view_menu.addAction(zoom_out_action)
+
+        zoom_reset_action = QAction("↺ Mida normal\tCtrl+0", self)
+        zoom_reset_action.triggered.connect(self.zoom_ui_reset)
+        view_menu.addAction(zoom_reset_action)
+
         # Menú Ajuda
         help_menu = menubar.addMenu("❓ Ajuda")
 

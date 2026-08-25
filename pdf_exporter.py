@@ -19,7 +19,6 @@ from PySide6.QtGui import (
     QPdfWriter,
 )
 from PySide6.QtCore import Qt, QThread, Signal, QRectF
-from PySide6.QtWidgets import QApplication
 
 from config import APP_AUTHOR, APP_WEBSITE
 
@@ -154,7 +153,6 @@ class NotesPDFExporter(BasePDFExporter):
 
             self._write_note(cursor, note)
             self.progress.emit(int(((i + 1) / len(self.notes)) * 100))
-            QApplication.processEvents()
 
     def _write_note(self, cursor: QTextCursor, note: Dict[str, Any]):
         """Escribe una nota con formato elegante"""
@@ -278,7 +276,6 @@ class TablePDFExporter(BasePDFExporter):
         # Tabla
         self._write_table(cursor)
         self.progress.emit(100)
-        QApplication.processEvents()
 
     def _write_table(self, cursor: QTextCursor):
         """Escribe tabla con formato HTML elegante"""
