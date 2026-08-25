@@ -21,6 +21,9 @@ dist/
 # Node (eina query.js)
 node_modules/
 
+# Config local de MiMoCode (permisos de l'agent)
+.mimocode/
+
 # Backups manuals previs a git
 backups/
 
