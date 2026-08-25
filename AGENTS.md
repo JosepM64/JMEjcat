@@ -2,7 +2,7 @@
 
 ## Descripció
 Gestió d'apunts i control d'expedients per a un tramitador d'un jutjat de lo civil (Barcelona). Portable i offline. Python 3.13 + PySide6 + SQLite (WAL).
-- **Versió**: 3.53 | **Data**: 2026-08-25 | **Build**: ~110 MB
+- **Versió**: 3.55 | **Data**: 2026-08-25 | **Build**: ~110 MB
 - **Repo**: https://github.com/JosepM64/JMEjcat (públic, branch `main`)
 
 ## Estructura
@@ -60,6 +60,8 @@ node query.js c all                      # Checkpoint WAL
 ```
 
 ## Últimes versions
+- **v3.55 (2026-08-25)**: visor "ajustar" limitat al 100% (mai ampliar → nitidesa); cerca amb %/_ literal (ESCAPE); recordatoris accepten dates ISO qualssevol; fora doble closeEvent a Tramitació; ajuda "Quant a" amb dreceres; llibreries al dia
+- **v3.54 (2026-08-25)**: zoom global UI (Ctrl +/-/0 + menú Opcions, persistent); fix visor fullscreen (re-fit en redimensionar); fix lock obsolet (comprova si el PID és viu); fora processEvents del thread PDF; verify 49/49
 - **v3.53 (2026-08-25)**: build PyInstaller sense dades privades ni codi font (spec `datas` només assets); backups BD via API sqlite3 (`Connection.backup`, snapshot consistent amb WAL viu); descripció oficial (tramitador jutjat civil); projecte publicat a GitHub
 - **v3.52**: Fix ID nulls a Tramitació + protecció _get_tramit_id
 - **v3.51**: Finestra edició tramit +50%, camp Info +50%

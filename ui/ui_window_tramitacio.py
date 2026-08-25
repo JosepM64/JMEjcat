@@ -55,9 +55,8 @@ class UiWindowTramitacioMixin:
                     continue
 
                 try:
-                    reminder_dt = datetime.strptime(
-                        reminder_at_str, "%Y-%m-%d %H:%M:%S"
-                    )
+                    # fromisoformat accepta "2026-08-25 14:30:00", "2026-08-25T14:30", etc.
+                    reminder_dt = datetime.fromisoformat(reminder_at_str)
                 except ValueError:
                     logger.warning(f"Format de data no vàlid: {reminder_at_str}")
                     continue

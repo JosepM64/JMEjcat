@@ -131,11 +131,15 @@ class Database(BaseDatabase):
         """Busca notes per títol (cerca parcial)."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            search_term = f"%{query}%"
+            # Escapar %, _ i \\ perquè es busquin literalment (ESCAPE '\')
+            escaped = (
+                query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            )
+            search_term = f"%{escaped}%"
             cursor.execute(
                 """
                 SELECT * FROM notes
-                WHERE title LIKE ?
+                WHERE title LIKE ? ESCAPE '\\'
                 ORDER BY updated_at DESC
             """,
                 (search_term,),

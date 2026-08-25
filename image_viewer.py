@@ -216,8 +216,10 @@ class ImageViewer(QDialog):
         scale_x = view_size.width() / pixmap_size.width()
         scale_y = view_size.height() / pixmap_size.height()
 
-        # Usar el factor mes petit per mantenir proporcions
-        scale_factor = min(scale_x, scale_y) * 0.95
+        # Usar el factor mes petit per mantenir proporcions.
+        # Mai ampliar per sobre del 100%: una imatge petita a mida real és
+        # nítida; amplada només genera borrositat (es pot fer zoom manual).
+        scale_factor = min(min(scale_x, scale_y) * 0.95, 1.0)
 
         self.zoom_level = scale_factor
         self.view.resetTransform()

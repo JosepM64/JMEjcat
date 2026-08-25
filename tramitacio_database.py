@@ -231,8 +231,14 @@ class TramitacioDatabase(BaseDatabase):
             params = []
 
             if numero:
-                query += " AND numero LIKE ?"
-                params.append(f"%{numero}%")
+                query += " AND numero LIKE ? ESCAPE '\\'"
+                # Escapar %, _ i \\ perquè es busquin literalment
+                escaped = (
+                    numero.replace("\\", "\\\\")
+                    .replace("%", "\\%")
+                    .replace("_", "\\_")
+                )
+                params.append(f"%{escaped}%")
 
             if any is not None:
                 query += " AND any = ?"

@@ -446,7 +446,6 @@ class BackupManager:
             dbtype_backups.sort(key=lambda x: x["timestamp"], reverse=True)
 
             # Keep only BACKUP_COUNT most recent of each type
-            dbtype_backups[:BACKUP_COUNT]
             to_delete = dbtype_backups[BACKUP_COUNT:]
 
             for backup in to_delete:

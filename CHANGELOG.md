@@ -1,5 +1,30 @@
 # Changelog - JMEJCat
 
+## v3.55 (2026-08-25)
+
+### Fix: Visor d'imatges — límit estàndard del 100%
+- "Ajustar a pantalla" (⊞, doble clic) **no amplia mai per sobre del 100%**: les imatges petites es veuen nítides a mida real
+- Per ampliar-les, zoom manual (+/- o Ctrl+roda) — l'ampliació digital sempre genera borrositat
+- Nota: la qualitat de les imatges depèn del fitxer d'origen; JMEJCat no recomprimeix res (els originals es copien byte a byte)
+
+### Fix: Cerca amb caràcters especials
+- Cercar `%` o `_` ara funciona literal (abans actuaven com comodins SQL) a notes i tramitacions
+
+### Fix: Recordatoris de Tramitació
+- El parseig de dates accepta qualsevol format ISO (`fromisoformat`), no només `YYYY-MM-DD HH:MM:SS` exacte
+
+### Fix: Doble tancament de BD a Tramitació
+- `closeEvent` cridava `super().closeEvent(event)` dues vegades
+
+### Ajuda actualitzada
+- El diàleg "Quant a" reflecteix la funció real (gestió d'apunts i expedients de tramitació) i inclou totes les dreceres de teclat (zoom Ctrl+/-, visor F11, etc.)
+
+### Llibreries
+- pyinstaller-hooks-contrib 2026.7 · better-sqlite3 13 (eina query.js)
+- PySide6 6.11.2, Pillow 12.3.0, PyInstaller 6.22.2: ja al dia
+
+---
+
 ## v3.54 (2026-08-25)
 
 ### Nou: Zoom global de la interfície

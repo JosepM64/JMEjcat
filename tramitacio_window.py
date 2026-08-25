@@ -71,7 +71,6 @@ class TramitacioWindow(QDialog):
         if getattr(self, "_owns_db", False) and hasattr(self, "db"):
             self.db.close()
         super().closeEvent(event)
-        super().closeEvent(event)
 
     def setup_ui(self):
         """Configura la interfície d'usuari."""

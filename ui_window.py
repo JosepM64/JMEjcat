@@ -383,16 +383,30 @@ class MainWindow(
         <p><b>Web:</b> <a href="{APP_WEBSITE}">{APP_WEBSITE}</a></p>
         <p><b>Secció:</b> Secció Civil del TI de Barcelona. Plaça núm. 46</p>
 
-        <p>Aplicació de notes estructurades offline i portable.</p>
+        <p>Gestió d'apunts i control d'expedients per a un tramitador de jutjat
+        civil. Portable i offline: tots els dades es guarden a la carpeta
+        <b>data/</b> del programa.</p>
 
         <h3>Característiques:</h3>
         <ul>
             <li>Notes amb títol, petició, solució i exemples</li>
             <li>Format de text enriquit (negreta, cursiva, subratllat)</li>
-            <li>Gestió d'imatges amb miniatures</li>
+            <li>Tramitació d'expedients: número, any, colors, recordatoris i alarmes</li>
+            <li>Gestió d'imatges amb miniatures i visor amb zoom</li>
             <li>Cerca instantània</li>
+            <li>Exportació a PDF, Markdown i CSV</li>
+            <li>Calculadora de despeses i diferència de pagaments</li>
             <li>Sistema de backups automàtics</li>
-            <li>Portable i offline</li>
+        </ul>
+
+        <h3>Dreceres útils:</h3>
+        <ul>
+            <li><b>Ctrl+N</b> nova nota · <b>Ctrl+S</b> desar · <b>Ctrl+F</b> cercar</li>
+            <li><b>Ctrl+B / I / U / T</b> negreta, cursiva, subratllat, tatxat</li>
+            <li><b>Ctrl+I</b> inserir imatge</li>
+            <li><b>Ctrl + / Ctrl - / Ctrl 0</b> mida de la interfície (portàtils)</li>
+            <li>Visor d'imatges: roda+Ctrl zoom · doble clic ajustar · <b>F11</b> pantalla completa</li>
+            <li><b>Ctrl+Q</b> sortir</li>
         </ul>
 
         <h3>Tecnologies:</h3>
