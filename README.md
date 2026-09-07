@@ -1,6 +1,6 @@
 # JMEJCat - Gestión de Apuntes y Expedientes
 
-![Versión](https://img.shields.io/badge/versión-3.53-blue)
+![Versión](https://img.shields.io/badge/versión-3.57-blue)
 ![Python](https://img.shields.io/badge/python-3.13%2B-green)
 ![License](https://img.shields.io/badge/licencia-LGPL%20v3-lightgrey)
 

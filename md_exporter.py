@@ -1,8 +1,8 @@
 import logging
-from pathlib import Path
-from typing import List, Dict, Any
 from datetime import datetime
 from html.parser import HTMLParser
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ def _format_date(iso_date: str) -> str:
         return iso_date
 
 
-def _note_to_md(note: Dict[str, Any]) -> str:
+def _note_to_md(note: dict[str, Any]) -> str:
     """Converteix una nota a format Markdown."""
     title = note.get("title", "Sense títol")
     created = _format_date(note.get("created_at", ""))
@@ -142,7 +142,7 @@ def _note_to_md(note: Dict[str, Any]) -> str:
 
 
 def export_notes_to_md(
-    notes: List[Dict[str, Any]],
+    notes: list[dict[str, Any]],
     output_path: Path,
     all_in_one: bool = True,
 ) -> str:
@@ -158,7 +158,7 @@ def export_notes_to_md(
         return _export_separate(notes, output_path)
 
 
-def _export_all_in_one(notes: List[Dict[str, Any]], output_path: Path) -> str:
+def _export_all_in_one(notes: list[dict[str, Any]], output_path: Path) -> str:
     """Exporta totes les notes en un sol fitxer MD."""
     now = datetime.now().strftime("%d/%m/%Y %H:%M")
 
@@ -184,7 +184,7 @@ def _export_all_in_one(notes: List[Dict[str, Any]], output_path: Path) -> str:
     return str(output_path)
 
 
-def _export_separate(notes: List[Dict[str, Any]], output_dir: Path) -> str:
+def _export_separate(notes: list[dict[str, Any]], output_dir: Path) -> str:
     """Exporta cada nota com a fitxer MD separat."""
     output_dir.mkdir(parents=True, exist_ok=True)
     for note in notes:

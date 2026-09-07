@@ -2,30 +2,30 @@
 
 import logging
 
-from PySide6.QtWidgets import (
-    QApplication,
-    QVBoxLayout,
-    QHBoxLayout,
-    QPushButton,
-    QDialog,
-    QLabel,
-    QTextEdit,
-    QMessageBox,
-    QSizePolicy,
-    QFontComboBox,
-    QComboBox,
-    QColorDialog,
-)
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import (
+    QFont,
     QKeySequence,
     QShortcut,
-    QTextCharFormat,
-    QFont,
-    QTextListFormat,
     QTextBlockFormat,
+    QTextCharFormat,
     QTextCursor,
+    QTextListFormat,
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import (
+    QApplication,
+    QColorDialog,
+    QComboBox,
+    QDialog,
+    QFontComboBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QTextEdit,
+    QVBoxLayout,
+)
 
 logger = logging.getLogger(__name__)
 

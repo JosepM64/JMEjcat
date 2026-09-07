@@ -4,14 +4,12 @@ Genera hashes únicos, thumbnails y maneja archivos de imagen
 """
 
 import hashlib
-import shutil
 import logging
-from datetime import datetime
-from pathlib import Path
-from typing import Optional, Tuple
+import shutil
 from dataclasses import dataclass
+from pathlib import Path
 
-from config import IMAGE_HASH_LENGTH, THUMBNAIL_SIZE, THUMBNAIL_QUALITY
+from config import IMAGE_HASH_LENGTH, THUMBNAIL_QUALITY, THUMBNAIL_SIZE
 from utils import get_original_images_path, get_thumbnails_path
 
 logger = logging.getLogger(__name__)
@@ -42,7 +40,10 @@ class ImageInfo:
 class ImageManager:
     """Gestiona todas las operaciones con imágenes."""
 
-    def __init__(self):
+    original_dir: Path
+    thumbs_dir: Path
+
+    def __init__(self) -> None:
         """Inicializa el gestor de imágenes."""
         self.original_dir = get_original_images_path()
         self.thumbs_dir = get_thumbnails_path()
@@ -56,16 +57,36 @@ class ImageManager:
 
     @staticmethod
     def _generate_file_hash(source_path: Path, length: int = IMAGE_HASH_LENGTH) -> str:
-        """Genera un hash único para el archivo."""
-        # Leer contenido del archivo
-        content = source_path.read_bytes()
+        """Genera un hash del contenido del archivo.
 
-        # Añadir timestamp para garantizar unicidad
-        timestamp = str(datetime.now().timestamp()).encode()
+        El hash se basa únicamente en el contenido: si se añade la misma
+        imagen dos veces, se reutiliza el mismo nombre (deduplicación).
+        Si hay colisión de nombre con contenido distinto, process_image
+        añade un sufijo numérico.
+        """
+        return hashlib.sha256(source_path.read_bytes()).hexdigest()[:length]
 
-        # Generar hash SHA256
-        hash_obj = hashlib.sha256(content + timestamp)
-        return hash_obj.hexdigest()[:length]
+    def _resolve_unique_name(self, file_hash: str, ext: str, content: bytes) -> tuple[str, Path]:
+        """Devuelve un (filename, path) único para el contenido.
+
+        - Si ya existe un fichero con el mismo hash y contenido → lo reutiliza.
+        - Si existe pero el contenido difiere (colisión) → añade sufijo _1, _2...
+        """
+        filename = f"{file_hash}{ext}"
+        target = self.original_dir / filename
+        if not target.exists():
+            return filename, target
+        if target.read_bytes() == content:
+            return filename, target  # mismo contenido: reutilizar
+        counter = 1
+        while True:
+            filename = f"{file_hash}_{counter}{ext}"
+            target = self.original_dir / filename
+            if not target.exists():
+                return filename, target
+            if target.read_bytes() == content:
+                return filename, target
+            counter += 1
 
     def _generate_thumbnail(self, source_path: Path, thumb_path: Path):
         """Genera una miniatura de la imagen."""
@@ -76,7 +97,8 @@ class ImageManager:
             return
 
         try:
-            with Image.open(source_path) as img:
+            with Image.open(source_path) as opened:
+                img: Image.Image = opened
                 # Convertir a RGB si es necesario
                 if img.mode in ("RGBA", "LA", "P"):
                     # Crear fondo blanco para transparencias
@@ -103,7 +125,7 @@ class ImageManager:
             # Fallback a copiar original
             shutil.copy2(source_path, thumb_path)
 
-    def process_image(self, source_path: Path) -> Optional[ImageInfo]:
+    def process_image(self, source_path: Path) -> ImageInfo | None:
         """
         Procesa una imagen: genera hash, copia original, crea thumbnail.
 
@@ -121,21 +143,21 @@ class ImageManager:
             return None
 
         try:
-            # Generar hash único
-            file_hash = self._generate_file_hash(source_path)
-
-            # Crear nombres de archivo
+            # Hash per contingut + nom únic (deduplicació / sufix si col·lisió)
+            content = source_path.read_bytes()
+            file_hash = hashlib.sha256(content).hexdigest()[:IMAGE_HASH_LENGTH]
             ext = source_path.suffix.lower()
-            filename = f"{file_hash}{ext}"
-            thumb_filename = f"{file_hash}_256.jpg"
 
-            # Rutas destino
-            target_path = self.original_dir / filename
+            filename, target_path = self._resolve_unique_name(file_hash, ext, content)
+            thumb_filename = f"{target_path.stem}_256.jpg"
             thumb_path = self.thumbs_dir / thumb_filename
 
-            # Copiar imagen original
-            shutil.copy2(source_path, target_path)
-            logger.info(f"Imagen copiada a: {target_path}")
+            # Copiar imagen original solo si no existe ya (deduplicación)
+            if not target_path.exists():
+                target_path.write_bytes(content)
+                logger.info(f"Imagen copiada a: {target_path}")
+            else:
+                logger.info(f"Imagen ya existente (deduplicada): {target_path}")
 
             # Generar thumbnail
             self._generate_thumbnail(source_path, thumb_path)
@@ -192,7 +214,7 @@ class ImageManager:
         except Exception as e:
             logger.error(f"Error eliminando archivos de imagen: {e}")
 
-    def get_disk_usage(self) -> Tuple[int, int]:
+    def get_disk_usage(self) -> tuple[int, int]:
         """Obtiene el uso de disco por las imágenes."""
         original_size = sum(
             f.stat().st_size for f in self.original_dir.glob("*") if f.is_file()

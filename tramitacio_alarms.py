@@ -5,21 +5,20 @@ Mostra les alarmes ordenades cronològicament amb accés ràpid al tràmit
 
 import logging
 from datetime import datetime
-from typing import Optional
 
-from PySide6.QtWidgets import (
-    QDialog,
-    QVBoxLayout,
-    QHBoxLayout,
-    QTableWidget,
-    QTableWidgetItem,
-    QPushButton,
-    QLabel,
-    QWidget,
-    QCheckBox,
-)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from tramitacio_database import TramitacioDatabase
 
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 class TramitacioAlarmsDialog(QDialog):
     """Finestra d'alarmes de Tramitació."""
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         if parent is not None and hasattr(parent, "tramit_db"):
             self.db = parent.tramit_db
@@ -211,9 +210,6 @@ class TramitacioAlarmsDialog(QDialog):
 
 
 def _get_tramit_colors():
-    """Retorna els colors disponibles (importat de tramitacio_window)."""
-    try:
-        from tramitacio_window import TRAMIT_COLORS
-        return {k: v[1] for k, v in TRAMIT_COLORS.items() if k}
-    except ImportError:
-        return {}
+    """Retorna els colors disponibles (font única a core/tramit_colors)."""
+    from core.tramit_colors import TRAMIT_COLORS
+    return {k: v[1] for k, v in TRAMIT_COLORS.items() if k}

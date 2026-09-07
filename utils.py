@@ -3,8 +3,8 @@ Módulo de utilidades para JMEJCat
 Funciones de path y helpers
 """
 
-import sys
 import logging
+import sys
 from functools import lru_cache
 from pathlib import Path
 
@@ -137,6 +137,25 @@ def setup_data_directories() -> Path:
     return data_path
 
 
+def validate_date_ddmmyyyy(date_str: str) -> bool:
+    """
+    Valida que una data tingui el format dd/MM/yyyy i sigui una data real.
+
+    Args:
+        date_str: Data en format dd/MM/yyyy.
+
+    Returns:
+        bool: True si la data és vàlida, False altrament.
+    """
+    from datetime import datetime
+
+    try:
+        datetime.strptime(date_str, "%d/%m/%Y")
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
 def format_file_size(bytes_size: int) -> str:
     """
     Formatea un tamaño de archivo en bytes a una representación legible.
@@ -147,10 +166,12 @@ def format_file_size(bytes_size: int) -> str:
     Returns:
         str: Tamaño formateado (ej. "1.5 MB").
     """
-    for unit in ["B", "KB", "MB", "GB"]:
-        if bytes_size < 1024.0 or unit == "GB":
-            return f"{bytes_size:.1f} {unit}"
-        bytes_size /= 1024.0
+    size = float(bytes_size)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024.0 or unit == "GB":
+            return f"{size:.1f} {unit}"
+        size /= 1024.0
+    return ""  # unreachable, però satisfà el tipus de retorn
 
 
 def is_portable_mode() -> bool:

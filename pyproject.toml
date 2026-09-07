@@ -1,0 +1,185 @@
+# ============================================================================
+# JMEJCat — Configuració de tooling (Ruff, mypy, pytest)
+# ============================================================================
+# Aquest fitxer NO s'envia al PyInstaller build — és exclusivament per a
+# l'entorn de desenvolupament. Veure JMEJCat.spec per a la config de build.
+# ============================================================================
+
+[project]
+# Aquest projecte no segueix PEP 621 (no es distribueix com a paquet a PyPI);
+# es distribueix com a executable via PyInstaller. La secció [project] és
+# només perquè ruff/mypy tinguin metadades per a la resolució de tipus.
+name = "JMEJCat"
+version = "3.62"
+description = "Gestió d'apunts i control d'expedients — tramitador jutjat civil"
+requires-python = ">=3.13"
+
+# ============================================================================
+# RUFF — Linter + formatter
+# ============================================================================
+# Filtre aplicat:
+#   F  : errors fatals (imports no usats, sintaxi)
+#   E  : errors estil pycodestyle
+#   W  : warnings pycodestyle
+#   UP : modernització de codi (pyupgrade)
+#   I  : ordenació d'imports (isort)
+# Exclòs:
+#   - backups/, dist/, build/, __pycache__/: artefactes
+#   - *_bak.py, fix_*.py, restore_*.py: scripts puntuals
+#   - tests/: cobertura independent (no falla per warnings)
+# ============================================================================
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = [
+    "backups",
+    "dist",
+    "build",
+    "__pycache__",
+    "tests",
+    ".ruff_cache",
+    ".pytest_cache",
+    "data",
+]
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "UP", "I"]
+# E501 (línia llarga) es desactiva a nivell global: hi ha cadenes HTML/CSS
+# multilínia dins de f-strings que no es poden trencar netament. La regla
+# de 100 caràcters s'aplica per a tota la resta.
+ignore = [
+    "E501",  # line-too-long (massa falsos positius en f-strings HTML)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests: es permet noqa si cal per a imports o asserts complexos
+"tests/**" = ["E402", "F401"]
+# __init__.py: imports poden semblar "no usats" (re-export)
+"**/__init__.py" = ["F401"]
+
+[tool.ruff.format]
+# Coherent amb AGENTS.md: 4 espais d'indentació
+indent-style = "space"
+quote-style = "double"
+line-ending = "lf"
+
+# ============================================================================
+# MYPY — Type checking
+# ============================================================================
+# Comença en mode "relaxed" per a tota la base de codi (errors només en
+# compatibilitat bàsica) i progressivament s'endureix per fitxer amb
+# [tool.mypy.overrides].
+#
+# Estratègia:
+#   1. Ara: ignore_missing_imports = true (PySide6/PIL no tenen stubs al projecte)
+#   2. Objectiu: strict = true als mòduls core/ (database, backup, base_database)
+#   3. Específic: ui_window.py i mixins continuaran amb relaxed (massa getters Qt)
+# ============================================================================
+
+[tool.mypy]
+python_version = "3.13"
+# Estratègia progressiva: el codi actual NO té anotacions completes a tot arreu.
+# Activem només les comprovacions que no produeixen centenars d'errors:
+strict = false
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+# No tenim stubs per PySide6/PIL instal·lats al projecte.
+ignore_missing_imports = true
+# Ignorem atributs Qt dinàmics (Qt.Horizontal, QMessageBox.Yes, etc.)
+# — realment existeixen però els stubs de PySide6 no els resolen bé.
+disable_error_code = ["attr-defined"]
+# Per als mòduls core, anirem apujant la rigidesa progressivament.
+# L'objectiu és arribar a strict = true per a `database` i `tramitacio_database`
+# abans de v4.0.
+[[tool.mypy.overrides]]
+# Mòduls core: comprovacions suaus — sense untyped defs però sense strict
+module = [
+    "core.base_database",
+    "core.tramit_colors",
+    "database",
+    "tramitacio_database",
+    "utils",
+]
+disallow_untyped_defs = true
+warn_unused_ignores = true
+[[tool.mypy.overrides]]
+# UI i entry point: relaxed (gestors de senyals Qt, callbacks, etc.)
+module = [
+    "jmejcat",
+    "ui_window",
+    "ui.*",
+    "calculator",
+    "image_manager",
+    "image_viewer",
+    "image_gallery",
+    "pdf_exporter",
+    "md_exporter",
+    "backup_manager",
+    "tramitacio_window",
+    "tramitacio_alarms",
+    "ui.tramitacio_edit_dialog",
+]
+disallow_untyped_defs = false
+# Deute arquitectònic conegut (P2 HANDOVER): els mixins UI no hereten QWidget
+# al seu tipus, de manera que QMessageBox(self)/QDialog(self) no encaixa amb
+# els stubs. Aquests codis d'error es desactiven NOMÉS per a la capa UI.
+disable_error_code = ["call-overload", "arg-type", "has-type"]
+# Tests: tipatge permissiu
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+ignore_errors = true
+
+# ============================================================================
+# PYTEST
+# ============================================================================
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = [
+    "-ra",                  # mostra raó de tots els resultats
+    "--strict-markers",     # marca desconegudes com a error
+    "--tb=short",           # traceback curt
+]
+testpaths = ["tests"]
+# Filtres per a warnings de llibreries externes
+filterwarnings = [
+    "ignore::DeprecationWarning:PySide6.*",
+    "ignore::PendingDeprecationWarning",
+]
+
+# ============================================================================
+# COVERAGE.PY (pytest-cov)
+# ============================================================================
+
+[tool.coverage.run]
+branch = true
+source = [
+    "database",
+    "tramitacio_database",
+    "core.base_database",
+    "core.tramit_colors",
+    "config",
+    "utils",
+]
+omit = [
+    "tests/*",
+    "build/*",
+    "dist/*",
+    "__pycache__/*",
+]
+
+[tool.coverage.report]
+# L'objectiu de cobertura gradual:
+#   - ara: 70% (BD core ja hi és)
+#   - 3 mesos: 85%
+fail_under = 70
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]

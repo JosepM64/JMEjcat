@@ -2,13 +2,13 @@
 """
 JMEJCat - Aplicación de notas estructuradas
 Punto de entrada principal
-Versió: 3.20
+Versió: 3.60
 """
 
-import sys
-import logging
 import ctypes
+import logging
 import os
+import sys
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -57,6 +57,20 @@ def setup_logging():
         log_dir = Path.home() / ".jmejcat_logs"
 
     log_dir.mkdir(exist_ok=True)
+
+    # Rotació: esborrar logs més antics de 30 dies per no omplir el disc
+    try:
+        from datetime import timedelta
+        cutoff = datetime.now() - timedelta(days=30)
+        for old_log in log_dir.glob("jmejcat_*.log"):
+            try:
+                ts = datetime.strptime(old_log.stem, "jmejcat_%Y%m%d_%H%M%S")
+                if ts < cutoff:
+                    old_log.unlink()
+            except (ValueError, OSError):
+                pass  # nom que no coincideix o error d'accés: deixar el fitxer
+    except Exception:
+        pass  # la rotació mai ha d'impedir l'arrencada
 
     log_file = log_dir / f"jmejcat_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 
@@ -174,13 +188,14 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Importar módulos con lazy loading (solo cuando sea necesario)
 def import_modules():
     """Importa módulos solo cuando sea necesario para reducir tiempo de inicio."""
-    from PySide6.QtWidgets import QApplication
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QIcon
-    from ui_window import MainWindow
-    from utils import setup_data_directories
+    from PySide6.QtWidgets import QApplication
+
     from backup_manager import BackupManager
     from config import APP_NAME, APP_VERSION
+    from ui_window import MainWindow
+    from utils import setup_data_directories
 
     return (
         QApplication,

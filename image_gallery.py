@@ -6,17 +6,16 @@ Widget que mostra una galeria de miniatures
 import logging
 from pathlib import Path
 
-from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QLabel,
-    QScrollArea,
-    QGridLayout,
-    QMenu,
-)
-from PySide6.QtGui import QAction
-from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QAction, QPixmap
+from PySide6.QtWidgets import (
+    QGridLayout,
+    QLabel,
+    QMenu,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +106,8 @@ class ImageGallery(QWidget):
         )
 
         # Conectar clic i menú de context
-        label.mousePressEvent = lambda e, p=image_path, i=image_id: (
+        # (monkey-patch intencionat del handler de PySide — veure _on_mouse_press)
+        label.mousePressEvent = lambda e, p=image_path, i=image_id: (  # type: ignore[method-assign,misc]
             self._on_mouse_press(e, p, i)
         )
 

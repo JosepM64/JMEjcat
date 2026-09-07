@@ -2,8 +2,8 @@
 Configuración y constantes de JMEJCat
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
 
 # ============================================================================
@@ -11,7 +11,7 @@ from pathlib import Path
 # ============================================================================
 
 APP_NAME = "JMEJCat"
-APP_VERSION = "3.57"
+APP_VERSION = "3.62"
 APP_AUTHOR = "Josep Maria Tapia Estaragues"
 APP_WEBSITE = "https://www.posicionamientowebysem.com/"
 APP_LICENSE = "LGPL v3"
@@ -45,7 +45,7 @@ DB_FILENAME = "jmejcat.db"
 DB_FILENAME_TRAMITACIO = "tramitacio.db"
 
 # Versión del esquema de base de datos (incrementar en migraciones)
-DB_VERSION = 1
+DB_VERSION = 2
 
 # Número de backups a mantener
 BACKUP_COUNT = 5

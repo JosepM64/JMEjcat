@@ -3,7 +3,7 @@
 import logging
 from pathlib import Path
 
-from PySide6.QtWidgets import QMessageBox, QFileDialog
+from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from image_viewer import ImageViewer
 

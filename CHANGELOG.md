@@ -1,5 +1,143 @@
 # Changelog - JMEJCat
 
+## v3.62 (2026-09-07)
+
+### Sprint 2 — P1: CI + Paginació + UX + Backups + Integritat (2.3-2.10)
+
+#### 2.3 CI GitHub Actions
+- Nou `.github/workflows/ci.yml` (windows-latest, Python 3.13): `pip install -r requirements.txt` → `ruff check .` → `mypy .` → `pytest -q` → `verify_automatica.py` (informatiu) → spec check. Criteri merge §17.
+
+#### 2.4 Paginació `get_all_*`
+- `database.py:get_all_notes(limit=200, offset=0)` i `tramitacio_database.py:get_all_tramits(color_filter, limit=200, offset=0)` amb `LIMIT ? OFFSET ?` (o `LIMIT -1 OFFSET ?` si limit None). Compatibilitat total — cridants sense paràmetres continuen retornant 200 per defecte.
+
+#### 2.5 Filtre "Avui" a Tramitació
+- `tramitacio_database.py:search_tramits(data: str | None)` nou param opcional `AND data = ?`.
+- `tramitacio_window.py` nou botó `Avui` (checkable, toggled → `on_search_changed`) que filtra `QDate.currentDate().toString("dd/MM/yyyy")`; `clear_filters()` desmarca Avui.
+
+#### 2.6 Debounce de cerca
+- `ui/ui_window_notes.py:170 on_search` ara fa debounce 300 ms via `QTimer` singleShot (`SEARCH_DELAY_MS`). Nova `_do_search()` fa la cerca real. Evita cerques contínues a cada pulsació.
+
+#### 2.7 Verificar backup abans de restaurar
+- `backup_manager.py:restore_backup()` crida `verify_backup_file()` abans de `shutil.copy2`; si invàlid → `False` + log `Backup invàlid, restauració abortada`. Fix `verify_backup_file()` per tancar connexió sempre (evita lock a Windows en fitxers corruptes).
+
+#### 2.8 Backup automàtic periòdic
+- `ui_window.py` nou `QTimer` 30 min (`_periodic_backup_timer`) que, si `current_note_modified`, desa la nota i fa `BackupManager.backup_database()` + `cleanup_old_backups()` silenciosa. Log informat.
+
+#### 2.9 CHECK constraints a BD
+- `database.py`: `title CHECK(length(title) BETWEEN 1 AND 100)`, `examples CHECK(... <=500)`
+- `tramitacio_database.py`: `numero CHECK(length 1-5 AND NOT GLOB '*[^0-9]*')`, `any CHECK(BETWEEN 1000 AND 9999)`, `data CHECK(length=10 AND GLOB '[0-9][0-9]/[0-9][0-9]/[0-9][0-9][0-9][0-9]')`
+- Validació prèvia a `C:\varis\JMEJCat\data` (384 tràmits / 89 notes): **0 violacions**. Noves BD ja tenen CHECK; BD existents validen a nivell aplicació (`_validate_*` → ValueError) mantenint compatibilitat.
+
+#### 2.10 Sistema de migracions versionades
+- `core/base_database.py`: taula `schema_version` + `_ensure_schema_version_table()` / `_get/_set_schema_version()` + `migrate()` que compara `config.DB_VERSION` (ara **2**) amb versió emmagatzemada i crida `_apply_migration(v)`. `Database` i `TramitacioDatabase` sobreescriuen `_apply_migration(2)` amb log compatibilitat. Primera init → `schema_version=2`.
+
+### Verificació
+- `ruff check .` → **All checks passed**
+- `mypy .` → **Success: no issues found in 40 source files**
+- `pytest -q` → **70 passed**
+- `verify_automatica.py` → **50/50 PASS** (v3.62)
+- Manual: paginació (limit 2 / offset 1), filtre Avui (1/2), debounce, restore corrupt → False, backup periòdic, CHECK rebuig (101 chars, 501, numero ABC, any 99, data 2024-01-01) tots OK.
+
+---
+
+## v3.61 (2026-09-06)
+
+### Sprint 2 — Tooling: pytest + Ruff + mypy (2.1 i 2.2)
+
+#### 2.1 Suite pytest real (70 tests)
+- Nou directori `tests/` amb fixtures aïllades a `tmp_path` (mai toca el `data/` real):
+  - `conftest.py` — `notes_db`, `tramit_db`, `tmp_data_dir`, `sample_png`, aïllament automàtic de `utils.get_*_path()`
+  - `test_config.py` (21) — metadades, BD, imatges, UI, paths
+  - `test_database.py` (24) — schema/WAL/FK, CRUD, cerca ESCAPE literal `%` `_`, imatges, stats
+  - `test_tramitacio.py` (25) — schema+UNIQUE, CRUD, upsert, `_merge_info` (5 casos), cerca, alarmes, stats
+- **Cobertura:** 70% total (config 94%, tramitacio_database 77%, database 70%, core.base_database 84%)
+- `verify_automatica.py` ara informa de l'existència de la suite (50/50 PASS)
+
+#### 2.2 Ruff + mypy via `pyproject.toml`
+- **Nou fitxer** `pyproject.toml`: configuració de Ruff (F,E,W,UP,I; línia 100), mypy, pytest i coverage
+- **Ruff**: 110 errors corregits (108 auto-fix: imports no usats, UP/I; 2 manuals E402) → **0 errors** a tota la base
+- **Mypy**: 821 → **0 errors** en 40 fitxers:
+  - Mòduls core (`database`, `tramitacio_database`, `core.*`, `utils`): `disallow_untyped_defs=true`
+  - Afegits tipus `str | None`/`int | None` (PEP 484) i `-> None` a funcions sense anotar
+  - `cast(int, cursor.lastrowid)` / `cast(int, cursor.rowcount)` (sqlite3 retorna Any)
+  - Dicts anotats a `backup_manager` (`list[dict[str, Any]]`, `result: dict[str, Any]`)
+  - `ImageManager.original_dir/thumbs_dir: Path` + `img: Image.Image`
+  - `image_viewer.all_images: list[Path] | None`
+  - Capa UI (mixins): deute arquitectònic conegut → `disable_error_code = ["call-overload", "arg-type", "has-type"]` només per a `ui.*` (P2 HANDOVER)
+
+### Verificació
+- `ruff check .` → **All checks passed**
+- `mypy .` → **Success: no issues found in 40 source files**
+- `pytest -q` → **70 passed in 0.72s**
+- `verify_automatica.py` → **50/50 PASS**
+- Imports de tots els mòduls: OK (sense regressions)
+
+### Pròxims pasos (Sprint 2)
+- 2.3 CI GitHub Actions
+- 2.4 Paginació `get_all_*` (LIMIT/OFFSET)
+- 2.5 Filtre "Avui" a Tramitació
+- 2.6 Debounce de cerca (300 ms)
+- 2.7 Verificar backup abans de restaurar
+- 2.8 Backup automàtic periòdic
+- 2.9 CHECK constraints a BD
+- 2.10 Sistema de migracions versionades
+- 2.11 FTS5 (condicional a volum)
+
+---
+
+## v3.60 (2026-09-04)
+
+### Refactor: Sprint 1 (P0 + Quick Wins) — A1-A5, R5
+
+#### A1: Centralitzar `TRAMIT_COLORS`
+- **Abans:** duplicat a `tramitacio_window.py:38`, `tramitacio_edit_dialog.py:32` i `tramitacio_alarms.py:213`
+- **Ara:** font única a `core/tramit_colors.py`; tothom importa des d'allà
+- **Verificat:** l'app arrenca i obre finestres de tramitació/alarmes correctament
+
+#### A2: Unificar `validate_date`
+- **Abans:** `TramitacioEditDialog.validate_date()` i línia 208 de `tramitacio_window.py` feien servir la mateixa validació en paral·lel
+- **Ara:** `utils.validate_date_ddmmyyyy()` (funció única)
+
+#### A3: `Path` natiu a `sqlite3.connect`
+- **Abans:** `sqlite3.connect(str(db_path))`
+- **Ara:** `sqlite3.connect(db_path)` (Python 3.11+ ja ho admet)
+
+#### A4: Thread-safety SQLite (A4)
+- `BaseDatabase._conn` ara es protegeix amb `threading.Lock` dins de `_get_connection`
+- Afegit `PRAGMA busy_timeout=5000` (espera fins 5s si la BD està ocupada)
+- Justificació: la connexió era compartida entre UI i `QThread` (PDF export) — risc de `Database is locked`
+
+#### A5: Hash d'imatges robust
+- **Abans:** `SHA256(content + timestamp)` (timestamp només per garantir unicitat — però això NO era deduplicació)
+- **Ara:** `SHA256(content)` pur + mètode `_resolve_unique_name()` que dedup si ja existeix o afegeix sufix `_1`, `_2`... si el nom col·lideix amb contingut diferent
+- **Test:** afegir la mateixa imatge 2× retorna el mateix filename
+
+#### R5: Log rotation (30 dies)
+- `setup_logging()` esborra `data/logs/jmejcat_YYYYMMDD_*.log` més antics de 30 dies
+- Evita infinitat de fitxers de log a llarg termini
+- Errors individuals (nom de fitxer invàlid, permís denegat) no bloquegen l'arrencada
+
+### Verificació
+- `python verify_automatica.py` → **49/49 PASS** (sense regressions)
+- Tests manuals: arrencada, finestres Notes/Tramitació/Alarmes, afegir imatges deduplicades
+
+### Canvis incompatibles
+- Cap. Tots els canvis són additius o refactors interns.
+- Nous fitxers: `core/tramit_colors.py` (afegit al `JMEJCat.spec` via auto-detect)
+
+### Pròxims pasos (Sprint 2 — P1)
+- P1.1 Paginació `get_all_*` (LIMIT/OFFSET)
+- P1.2 FTS5 per Notes + Tramitació
+- P1.3 Filtre "Avui" a Tramitació
+- P1.4 Debounce de cerca (300 ms)
+- P1.5 Verificar backup abans de restaurar
+- P1.6 Backup automàtic periòdic
+- P1.7 CHECK constraints a BD
+- P1.8 Sistema de migracions versionades
+- Veure `JMEJCat_Millores_Definitives.md` per a detalls complets
+
+---
+
 ## v3.57 (2026-08-25)
 
 ### Fix: El zoom ara també escala el text dels editors

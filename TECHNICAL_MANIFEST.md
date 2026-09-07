@@ -1,6 +1,6 @@
 JMEJCat - Technical Architecture Manifest
 
-Version: 3.20
+Version: 3.57
 Status: Released
 Core Principle: Separation of Concerns, Portable, Offline-First, Optimized
 License: LGPL v3

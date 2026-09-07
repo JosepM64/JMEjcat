@@ -4,41 +4,29 @@ Diàleg per crear/editar un tràmit
 
 import logging
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any
 
+from PySide6.QtCore import QDateTime, Qt
 from PySide6.QtWidgets import (
     QApplication,
-    QDialog,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLineEdit,
-    QLabel,
-    QMessageBox,
-    QWidget,
     QComboBox,
-    QTextEdit,
-    QPushButton,
     QDateTimeEdit,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, QDateTime
-from PySide6.QtGui import QColor
 
-from tramitacio_database import TramitacioDatabase
 from calculator import CalculatorDialog
+from core.tramit_colors import TRAMIT_COLORS
+from tramitacio_database import TramitacioDatabase
 
 logger = logging.getLogger(__name__)
-
-# Colors disponibles per als markers (semitransparents)
-TRAMIT_COLORS = {
-    "": ("Sense color", QColor(0, 0, 0, 0)),
-    "vermell": ("Vermell (Pendent)", QColor(255, 0, 0, 80)),
-    "taronja": ("Taronja (Urgent)", QColor(255, 165, 0, 80)),
-    "groc": ("Groc (Atenció)", QColor(255, 255, 0, 80)),
-    "verd": ("Verd (Fet)", QColor(0, 255, 0, 80)),
-    "blau": ("Blau (Info)", QColor(0, 0, 255, 80)),
-    "lila": ("Lila (Especial)", QColor(128, 0, 128, 80)),
-    "gris": ("Gris (Archivat)", QColor(128, 128, 128, 80)),
-}
 
 
 class TramitacioEditDialog(QDialog):
@@ -46,11 +34,11 @@ class TramitacioEditDialog(QDialog):
 
     def __init__(
         self,
-        parent: Optional[QWidget] = None,
-        tramit: Optional[Dict[str, Any]] = None,
-        initial_numero: Optional[str] = None,
-        initial_any: Optional[str] = None,
-        db: Optional[TramitacioDatabase] = None,
+        parent: QWidget | None = None,
+        tramit: dict[str, Any] | None = None,
+        initial_numero: str | None = None,
+        initial_any: str | None = None,
+        db: TramitacioDatabase | None = None,
     ):
         super().__init__(parent)
         self.tramit = tramit if tramit is not None else {}
@@ -240,10 +228,10 @@ class TramitacioEditDialog(QDialog):
         """Obre el dialeg per establir un avís al tràmit."""
         from PySide6.QtWidgets import (
             QDialog,
-            QVBoxLayout,
             QHBoxLayout,
-            QPushButton,
             QLabel,
+            QPushButton,
+            QVBoxLayout,
         )
 
         dialog = QDialog(self)
@@ -290,13 +278,8 @@ class TramitacioEditDialog(QDialog):
 
     def validate_date(self, date_str: str) -> bool:
         """Valida que la data tingui el format dd/MM/yyyy i sigui vàlida."""
-        from datetime import datetime
-
-        try:
-            datetime.strptime(date_str, "%d/%m/%Y")
-            return True
-        except ValueError:
-            return False
+        from utils import validate_date_ddmmyyyy
+        return validate_date_ddmmyyyy(date_str)
 
     def _on_cancel_clicked(self):
         """Cancel·lació explícita: no auto-guarda en tancar."""

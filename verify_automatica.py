@@ -8,11 +8,11 @@ Versión: 2.5
 Ejecutar: python verify_automatica.py
 """
 
-import sys
 import os
+import sys
 
 PROJECT_NAME = "JMEJCat"
-PROJECT_VERSION = "3.41"
+PROJECT_VERSION = "3.62"
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = SCRIPT_DIR
@@ -61,7 +61,7 @@ def read_file(filepath):
     if not os.path.isabs(filepath):
         filepath = os.path.join(PROJECT_DIR, filepath)
     try:
-        with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+        with open(filepath, encoding="utf-8", errors="ignore") as f:
             return f.read()
     except (FileNotFoundError, PermissionError, OSError):
         return ""
@@ -92,6 +92,12 @@ def verify_project_structure(result: VerificationResult):
             result.add_pass("Estructura", f)
         else:
             result.add_fail("Estructura", f"no encontrado: {f}")
+
+    # Tests pytest (v3.60): només informatiu fins que superin 70% cobertura
+    if os.path.isdir("tests"):
+        result.add_pass("Estructura", "tests/ (pytest)")
+    else:
+        result.add_warning("Estructura", "tests/ no existeix (P0 Sprint 2)")
 
 
 def verify_main_entry(result: VerificationResult):

@@ -1,21 +1,22 @@
 """Text formatting, case cycling, color, and context menu mixin for MainWindow."""
 
-from PySide6.QtWidgets import (
-    QApplication,
-    QTextEdit,
-    QLineEdit,
-    QColorDialog,
-    QMessageBox,
-    QDialog,
-)
 from PySide6.QtGui import (
-    QTextCharFormat,
-    QFont,
+    QAction,
     QColor,
+    QFont,
+    QTextCharFormat,
     QTextCursor,
     QTextListFormat,
-    QAction,
 )
+from PySide6.QtWidgets import (
+    QApplication,
+    QColorDialog,
+    QDialog,
+    QLineEdit,
+    QMessageBox,
+    QTextEdit,
+)
+
 from ui_dialogs import NoteLinkDialog
 
 

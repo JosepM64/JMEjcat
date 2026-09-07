@@ -5,11 +5,11 @@ Maneja todas las operaciones con SQLite
 
 import logging
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any, cast
 
 from config import DB_FILENAME
-from utils import get_data_path
 from core.base_database import BaseDatabase
+from utils import get_data_path
 
 logger = logging.getLogger(__name__)
 
@@ -17,13 +17,13 @@ logger = logging.getLogger(__name__)
 class Database(BaseDatabase):
     """Clase principal para manejar operaciones de base de datos."""
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         """Inicializa la conexión a la base de datos."""
         if db_path is None:
             db_path = get_data_path() / DB_FILENAME
         super().__init__(db_path)
 
-    def init_database(self):
+    def init_database(self) -> None:
         """Inicializa las tablas de la base de datos si no existen."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -31,10 +31,10 @@ class Database(BaseDatabase):
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS notes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title TEXT NOT NULL,
+                    title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 100),
                     request TEXT,
                     solution TEXT,
-                    examples TEXT,
+                    examples TEXT CHECK(examples IS NULL OR length(examples) <= 500),
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
@@ -63,12 +63,39 @@ class Database(BaseDatabase):
 
             logger.info("Tablas e índices creados/verificados")
 
+    def _apply_migration(self, target_version: int) -> None:
+        """Migració v2: afegeix CHECK constraints (validades prèviament a C:/varis/JMEJCat 0 violacions)."""
+        if target_version == 2:
+            # La taula ja existeix sense CHECK en instal·lacions antigues.
+            # El CREATE IF NOT EXISTS no la modifica, però les noves instal·lacions
+            # sí tindran els CHECK. Per a BD existents, validem i informem.
+            try:
+                with self._get_connection() as conn:
+                    cur = conn.cursor()
+                    cur.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='notes'")
+                    row = cur.fetchone()
+                    sql = row[0] if row else ""
+                    if "CHECK" not in sql:
+                        logger.info("Migració v2: notes sense CHECK (BD existent) — es manté compatibilitat; nous registres seran validats a nivell d'aplicació")
+            except Exception as e:
+                logger.warning(f"Migració v2 notes: {e}")
+        else:
+            super()._apply_migration(target_version)
+
+    def _validate_note_fields(self, title: str, examples: str) -> None:
+        """Valida camps abans d'inserir (mirall dels CHECK de la BD)."""
+        if not (1 <= len(title) <= 100):
+            raise ValueError(f"Títol ha de tenir 1-100 caràcters (actual {len(title)})")
+        if examples is not None and len(examples) > 500:
+            raise ValueError(f"Exemples màxim 500 caràcters (actual {len(examples)})")
+
     # --- Operaciones CRUD para notas ---
 
     def create_note(
         self, title: str, request: str = "", solution: str = "", examples: str = ""
     ) -> int:
         """Crea una nueva nota y devuelve su ID."""
+        self._validate_note_fields(title, examples)
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -78,11 +105,11 @@ class Database(BaseDatabase):
             """,
                 (title, request, solution, examples),
             )
-            note_id = cursor.lastrowid
+            note_id = cast(int, cursor.lastrowid)
             logger.info(f"Nota creada con ID: {note_id}")
             return note_id
 
-    def get_note(self, note_id: int) -> Optional[Dict[str, Any]]:
+    def get_note(self, note_id: int) -> dict[str, Any] | None:
         """Obtiene una nota por su ID."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -94,6 +121,7 @@ class Database(BaseDatabase):
         self, note_id: int, title: str, request: str, solution: str, examples: str
     ) -> bool:
         """Actualiza una nota existente."""
+        self._validate_note_fields(title, examples)
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -105,7 +133,7 @@ class Database(BaseDatabase):
             """,
                 (title, request, solution, examples, note_id),
             )
-            updated = cursor.rowcount > 0
+            updated = cast(int, cursor.rowcount) > 0
             if updated:
                 logger.info(f"Nota {note_id} actualizada")
             return updated
@@ -115,19 +143,38 @@ class Database(BaseDatabase):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM notes WHERE id = ?", (note_id,))
-            deleted = cursor.rowcount > 0
+            deleted = cast(int, cursor.rowcount) > 0
             if deleted:
                 logger.info(f"Nota {note_id} eliminada")
             return deleted
 
-    def get_all_notes(self) -> List[Dict[str, Any]]:
-        """Obtiene todas las notas ordenadas por fecha de actualización."""
+    def get_all_notes(
+        self, limit: int | None = 200, offset: int | None = 0
+    ) -> list[dict[str, Any]]:
+        """Obtiene todas las notas ordenadas por fecha de actualización.
+
+        Args:
+            limit: Nombre màxim de notes a retornar (None = sense límit).
+            offset: Desplaçament per a paginació.
+        """
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM notes ORDER BY updated_at DESC")
+            query = "SELECT * FROM notes ORDER BY updated_at DESC"
+            params: list[Any] = []
+            if limit is not None:
+                query += " LIMIT ?"
+                params.append(limit)
+                if offset:
+                    query += " OFFSET ?"
+                    params.append(offset)
+            elif offset:
+                # SQLite requereix LIMIT quan hi ha OFFSET: -1 = sense límit
+                query += " LIMIT -1 OFFSET ?"
+                params.append(offset)
+            cursor.execute(query, params)
             return [dict(row) for row in cursor.fetchall()]
 
-    def search_notes(self, query: str) -> List[Dict[str, Any]]:
+    def search_notes(self, query: str) -> list[dict[str, Any]]:
         """Busca notes per títol (cerca parcial)."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -159,11 +206,11 @@ class Database(BaseDatabase):
             """,
                 (note_id, filename, thumb_filename),
             )
-            image_id = cursor.lastrowid
+            image_id = cast(int, cursor.lastrowid)
             logger.info(f"Imagen {image_id} añadida a nota {note_id}")
             return image_id
 
-    def get_note_images(self, note_id: int) -> List[Dict[str, Any]]:
+    def get_note_images(self, note_id: int) -> list[dict[str, Any]]:
         """Obtiene todas las imágenes de una nota."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -182,7 +229,7 @@ class Database(BaseDatabase):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM images WHERE id = ?", (image_id,))
-            deleted = cursor.rowcount > 0
+            deleted = cast(int, cursor.rowcount) > 0
             if deleted:
                 logger.info(f"Imagen {image_id} eliminada")
             return deleted
@@ -269,7 +316,7 @@ class Database(BaseDatabase):
             logger.info(f"Imatge {image_id} moguda avall")
             return True
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas de la base de datos."""
         with self._get_connection() as conn:
             cursor = conn.cursor()

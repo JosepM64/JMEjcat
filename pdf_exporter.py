@@ -5,20 +5,20 @@ Sistema unificado con soporte para notas y tablas
 
 import logging
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any
 
+from PySide6.QtCore import QRectF, Qt, QThread, Signal
 from PySide6.QtGui import (
-    QTextDocument,
-    QPageSize,
-    QTextCursor,
-    QTextBlockFormat,
-    QTextCharFormat,
-    QFont,
     QColor,
+    QFont,
+    QPageSize,
     QPainter,
     QPdfWriter,
+    QTextBlockFormat,
+    QTextCharFormat,
+    QTextCursor,
+    QTextDocument,
 )
-from PySide6.QtCore import Qt, QThread, Signal, QRectF
 
 from config import APP_AUTHOR, APP_WEBSITE
 
@@ -139,7 +139,7 @@ class BasePDFExporter(QThread):
 class NotesPDFExporter(BasePDFExporter):
     """Exportador de notas con formato elegante (original)"""
 
-    def __init__(self, notes: List[Dict[str, Any]], output_path: Path):
+    def __init__(self, notes: list[dict[str, Any]], output_path: Path):
         super().__init__(output_path)
         self.notes = notes
 
@@ -154,7 +154,7 @@ class NotesPDFExporter(BasePDFExporter):
             self._write_note(cursor, note)
             self.progress.emit(int(((i + 1) / len(self.notes)) * 100))
 
-    def _write_note(self, cursor: QTextCursor, note: Dict[str, Any]):
+    def _write_note(self, cursor: QTextCursor, note: dict[str, Any]):
         """Escribe una nota con formato elegante"""
         title = note.get("title", "Sense títit")
         created = note.get("created_at", "")
@@ -243,8 +243,8 @@ class TablePDFExporter(BasePDFExporter):
 
     def __init__(
         self,
-        data: List[List[str]],
-        headers: List[str],
+        data: list[list[str]],
+        headers: list[str],
         output_path: Path,
         title: str = "Tramitació",
     ):
@@ -308,7 +308,7 @@ class TablePDFExporter(BasePDFExporter):
 
 
 def export_notes_to_pdf(
-    notes: List[Dict[str, Any]], output_path: Path, parent=None, callback=None
+    notes: list[dict[str, Any]], output_path: Path, parent=None, callback=None
 ) -> NotesPDFExporter:
     """Exporta notas a PDF (API original)"""
     exporter = NotesPDFExporter(notes, output_path)
@@ -319,8 +319,8 @@ def export_notes_to_pdf(
 
 
 def export_table_to_pdf(
-    data: List[List[str]],
-    headers: List[str],
+    data: list[list[str]],
+    headers: list[str],
     output_path: Path,
     title: str = "Tramitació",
     parent=None,

@@ -3,12 +3,12 @@
 import logging
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog, QMessageBox, QProgressDialog
-from PySide6.QtGui import QDesktopServices
 from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtWidgets import QFileDialog, QMessageBox, QProgressDialog
 
-from pdf_exporter import export_notes_to_pdf
 from md_exporter import export_notes_to_md
+from pdf_exporter import export_notes_to_pdf
 
 logger = logging.getLogger(__name__)
 

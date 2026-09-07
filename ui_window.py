@@ -5,51 +5,50 @@ Interfície d'usuari amb PySide6
 
 import logging
 
-from PySide6.QtWidgets import (
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QSplitter,
-    QLineEdit,
-    QTextEdit,
-    QListWidget,
-    QLabel,
-    QPushButton,
-    QMessageBox,
-    QApplication,
-)
+from PySide6.QtCore import QSettings, Qt, QTimer, QUrl
 from PySide6.QtGui import (
-    QFontMetrics,
     QDesktopServices,
-    QShortcut,
+    QFontMetrics,
     QKeySequence,
+    QShortcut,
 )
-from PySide6.QtCore import Qt, QUrl, QTimer, QSettings
+from PySide6.QtWidgets import (
+    QApplication,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QSplitter,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
-from database import Database
-from tramitacio_database import TramitacioDatabase
-from image_manager import ImageManager
-from image_gallery import ImageGallery
 from config import (
+    APP_AUTHOR,
     APP_NAME,
     APP_VERSION,
-    APP_AUTHOR,
     APP_WEBSITE,
-    TITLE_MAX_LENGTH,
-    EXAMPLES_MAX_LENGTH,
     AUTOSAVE_INTERVAL,
-    SPLITTER_SIZES,
+    EXAMPLES_MAX_LENGTH,
     SOLUTION_STRETCH,
+    SPLITTER_SIZES,
+    TITLE_MAX_LENGTH,
 )
-
-from ui.ui_window_menu import UiWindowMenuMixin
-from ui.ui_window_editor import UiWindowEditorMixin
-from ui.ui_window_formatting import UiWindowFormattingMixin
-from ui.ui_window_notes import UiWindowNotesMixin
-from ui.ui_window_images import UiWindowImagesMixin
-from ui.ui_window_export import UiWindowExportMixin
+from database import Database
+from image_gallery import ImageGallery
+from image_manager import ImageManager
+from tramitacio_database import TramitacioDatabase
 from ui.ui_window_backup import UiWindowBackupMixin
+from ui.ui_window_editor import UiWindowEditorMixin
+from ui.ui_window_export import UiWindowExportMixin
+from ui.ui_window_formatting import UiWindowFormattingMixin
+from ui.ui_window_images import UiWindowImagesMixin
+from ui.ui_window_menu import UiWindowMenuMixin
+from ui.ui_window_notes import UiWindowNotesMixin
 from ui.ui_window_tramitacio import UiWindowTramitacioMixin
 
 logger = logging.getLogger(__name__)
@@ -104,6 +103,11 @@ class MainWindow(
         self.snoozed_reminders = {}  # {tramit_id: datetime_when_to_show}
         self.snooze_all_active = False  # botó "silenciar avui"
         self.snooze_session_active = False  # botó "silenciar fins reinici"
+
+        # 2.8: Backup automàtic periòdic cada 30 min només si hi ha canvis pendents
+        self._periodic_backup_timer = QTimer(self)
+        self._periodic_backup_timer.timeout.connect(self._periodic_backup)
+        self._periodic_backup_timer.start(30 * 60 * 1000)  # 30 min
 
         # Configurar UI
         self.setup_ui()
@@ -366,10 +370,11 @@ class MainWindow(
 
     def show_about(self):
         """Mostra el diàleg 'Quant a'."""
-        from PySide6.QtCore import qVersion
-        import PIL
         import sqlite3
         import sys
+
+        import PIL
+        from PySide6.QtCore import qVersion
 
         pyside_version = qVersion()
         pillow_version = PIL.__version__
@@ -535,6 +540,32 @@ class MainWindow(
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error obtenint estadístiques:\n{e}")
 
+    def _periodic_backup(self):
+        """Backup automàtic cada 30 min només si hi ha modificacions pendents (2.8)."""
+        if not getattr(self, "current_note_modified", False):
+            return
+        try:
+            from backup_manager import BackupManager
+
+            # Guardar primer la nota si està modificada
+            if hasattr(self, "save_note"):
+                try:
+                    self.save_note()
+                except Exception as e:
+                    logger.warning(f"Error en desar abans del backup periòdic: {e}")
+            ok = BackupManager.backup_database()
+            if ok:
+                logger.info("Backup periòdic executat (30 min, hi havia canvis)")
+                # Neteja antics silenciosa
+                try:
+                    BackupManager.cleanup_old_backups()
+                except Exception:
+                    pass
+            else:
+                logger.warning("Backup periòdic fallit")
+        except Exception as e:
+            logger.warning(f"Error en backup periòdic: {e}")
+
     def open_website(self):
         """Obre la web de l'autor."""
         QDesktopServices.openUrl(QUrl(APP_WEBSITE))
@@ -618,12 +649,18 @@ class MainWindow(
                 event.ignore()
                 return
 
-        # Realizar backup
+        # Realizar backup + neteja automàtica (manté BACKUP_COUNT per tipus)
         from backup_manager import BackupManager
 
         try:
             BackupManager.backup_database()
             logger.info("Backup realizado al cerrar")
+            try:
+                deleted, _ = BackupManager.cleanup_old_backups()
+                if deleted:
+                    logger.info(f"Cleanup backups: {deleted} antics eliminats")
+            except Exception as ce:
+                logger.warning(f"Error netejant backups antics: {ce}")
         except Exception as e:
             logger.warning(f"Error realizando backup al cerrar: {e}")
 

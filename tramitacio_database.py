@@ -3,14 +3,14 @@ Módulo de base de datos para Tramitació
 Maneja operacions SQLite específiques per al mòdul de Tramitació
 """
 
-import sqlite3
 import logging
+import sqlite3
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any, cast
 
 from config import DB_FILENAME_TRAMITACIO
-from utils import get_data_path
 from core.base_database import BaseDatabase
+from utils import get_data_path
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +18,13 @@ logger = logging.getLogger(__name__)
 class TramitacioDatabase(BaseDatabase):
     """Classe per gestionar la base de dades de Tramitació."""
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         """Inicialitza la connexió a la base de dades de Tramitació."""
         if db_path is None:
             db_path = get_data_path() / DB_FILENAME_TRAMITACIO
         super().__init__(db_path)
 
-    def init_database(self):
+    def init_database(self) -> None:
         """Inicialitza les taules de la base de dades si no existeixen."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -32,9 +32,9 @@ class TramitacioDatabase(BaseDatabase):
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS tramitacio (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    numero TEXT NOT NULL,
-                    any INTEGER NOT NULL,
-                    data TEXT NOT NULL,
+                    numero TEXT NOT NULL CHECK(length(numero) BETWEEN 1 AND 5 AND numero NOT GLOB '*[^0-9]*'),
+                    any INTEGER NOT NULL CHECK(any BETWEEN 1000 AND 9999),
+                    data TEXT NOT NULL CHECK(length(data) = 10 AND data GLOB '[0-9][0-9]/[0-9][0-9]/[0-9][0-9][0-9][0-9]'),
                     info TEXT,
                     color TEXT DEFAULT '',
                     reminder_at TEXT DEFAULT NULL,
@@ -70,7 +70,23 @@ class TramitacioDatabase(BaseDatabase):
 
             logger.info("Taules e índexs de Tramitació creats/verificats")
 
-    def _consolidate_duplicates(self, conn) -> int:
+    def _apply_migration(self, target_version: int) -> None:
+        """Migració v2: CHECK constraints per numero/any/data."""
+        if target_version == 2:
+            try:
+                with self._get_connection() as conn:
+                    cur = conn.cursor()
+                    cur.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='tramitacio'")
+                    row = cur.fetchone()
+                    sql = row[0] if row else ""
+                    if "CHECK" not in sql:
+                        logger.info("Migració v2: tramitacio sense CHECK (BD existent) — compatibilitat mantinguda")
+            except Exception as e:
+                logger.warning(f"Migració v2 tramitacio: {e}")
+        else:
+            super()._apply_migration(target_version)
+
+    def _consolidate_duplicates(self, conn: sqlite3.Connection) -> int:
         """Consolida duplicats (numero, any) mantenint el registre més recent.
         La info de tots els duplicats es fusiona en un sol camp amb separador visual.
         Retorna quantitat de registres eliminats."""
@@ -120,6 +136,23 @@ class TramitacioDatabase(BaseDatabase):
             logger.info(f"Duplicats consolidats: {eliminats} registres eliminats")
         return eliminats
 
+    def _validate_tramit_fields(self, numero: str, any: int, data: str) -> None:
+        """Valida camps abans d'inserir (mirall dels CHECK)."""
+        if not (1 <= len(numero) <= 5 and numero.isdigit()):
+            raise ValueError(f"Número ha de ser 1-5 dígits (actual '{numero}')")
+        if not (1000 <= any <= 9999):
+            raise ValueError(f"Any ha de ser 1000-9999 (actual {any})")
+        # data dd/MM/yyyy
+        if len(data) != 10 or data[2] != "/" or data[5] != "/":
+            raise ValueError(f"Data ha de ser dd/MM/yyyy (actual '{data}')")
+        # validació real de data
+        from datetime import datetime as _dt
+
+        try:
+            _dt.strptime(data, "%d/%m/%Y")
+        except ValueError as e:
+            raise ValueError(f"Data invàlida '{data}': {e}") from e
+
     # --- Operacions CRUD per Tramitació ---
 
     def create_tramit(
@@ -129,9 +162,10 @@ class TramitacioDatabase(BaseDatabase):
         data: str,
         info: str = "",
         color: str = "",
-        reminder_at: str = None,
+        reminder_at: str | None = None,
     ) -> int:
         """Crea una nova tramitació i retorna el seu ID."""
+        self._validate_tramit_fields(numero, any, data)
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -141,11 +175,11 @@ class TramitacioDatabase(BaseDatabase):
             """,
                 (numero, any, data, info, color, reminder_at),
             )
-            tramit_id = cursor.lastrowid
+            tramit_id = cast(int, cursor.lastrowid)
             logger.info(f"Tramitació creada amb ID: {tramit_id}")
             return tramit_id
 
-    def get_tramit(self, tramit_id: int) -> Optional[Dict[str, Any]]:
+    def get_tramit(self, tramit_id: int) -> dict[str, Any] | None:
         """Obté una tramitació per ID."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -161,9 +195,10 @@ class TramitacioDatabase(BaseDatabase):
         data: str,
         info: str,
         color: str = "",
-        reminder_at: str = None,
+        reminder_at: str | None = None,
     ) -> bool:
         """Actualitza una tramitació existent."""
+        self._validate_tramit_fields(numero, any, data)
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -207,28 +242,52 @@ class TramitacioDatabase(BaseDatabase):
                 logger.info(f"Tramitació {tramit_id} eliminada")
             return deleted
 
-    def get_all_tramits(self, color_filter: str = None) -> List[Dict[str, Any]]:
-        """Obté totes les tramitacions ordenades per data actualització."""
+    def get_all_tramits(
+        self,
+        color_filter: str | None = None,
+        limit: int | None = 200,
+        offset: int | None = 0,
+    ) -> list[dict[str, Any]]:
+        """Obté totes les tramitacions ordenades per data actualització.
+
+        Args:
+            color_filter: Filtre opcional per color.
+            limit: Nombre màxim de tràmits a retornar (None = sense límit).
+            offset: Desplaçament per a paginació.
+        """
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            query = "SELECT * FROM tramitacio"
+            params: list[Any] = []
             if color_filter:
-                cursor.execute(
-                    "SELECT * FROM tramitacio WHERE color = ? ORDER BY updated_at DESC",
-                    (color_filter,),
-                )
-            else:
-                cursor.execute("SELECT * FROM tramitacio ORDER BY updated_at DESC")
+                query += " WHERE color = ?"
+                params.append(color_filter)
+            query += " ORDER BY updated_at DESC"
+            if limit is not None:
+                query += " LIMIT ?"
+                params.append(limit)
+                if offset:
+                    query += " OFFSET ?"
+                    params.append(offset)
+            elif offset:
+                query += " LIMIT -1 OFFSET ?"
+                params.append(offset)
+            cursor.execute(query, params)
             return [dict(row) for row in cursor.fetchall()]
 
     def search_tramits(
-        self, numero: str = "", any: int = None, color_filter: str = None
-    ) -> List[Dict[str, Any]]:
-        """Cerca tramitacions per número i/o any i/o color."""
+        self,
+        numero: str = "",
+        any: int | None = None,
+        color_filter: str | None = None,
+        data: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Cerca tramitacions per número i/o any i/o color i/o data."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
 
             query = "SELECT * FROM tramitacio WHERE 1=1"
-            params = []
+            params: list[Any] = []
 
             if numero:
                 query += " AND numero LIKE ? ESCAPE '\\'"
@@ -242,11 +301,15 @@ class TramitacioDatabase(BaseDatabase):
 
             if any is not None:
                 query += " AND any = ?"
-                params.append(any)
+                params.append(str(any))
 
             if color_filter:
                 query += " AND color = ?"
                 params.append(color_filter)
+
+            if data:
+                query += " AND data = ?"
+                params.append(data)
 
             query += " ORDER BY data DESC"
 
@@ -254,8 +317,8 @@ class TramitacioDatabase(BaseDatabase):
             return [dict(row) for row in cursor.fetchall()]
 
     def get_tramit_by_numero_any(
-        self, numero: str, any: int, exclude_id: int = None
-    ) -> Optional[Dict[str, Any]]:
+        self, numero: str, any: int, exclude_id: int | None = None
+    ) -> dict[str, Any] | None:
         """Obté una tramitació per número i any. Opcionalment exclou un ID."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -279,10 +342,11 @@ class TramitacioDatabase(BaseDatabase):
         data: str,
         info: str = "",
         color: str = "",
-        reminder_at: str = None,
+        reminder_at: str | None = None,
     ) -> int:
         """Insereix o actualitza un tràmit segons número+any. Retorna l'ID.
         Si ja existeix, consolida la info: manté l'antiga i afegeix la nova després."""
+        self._validate_tramit_fields(numero, any, data)
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -291,7 +355,8 @@ class TramitacioDatabase(BaseDatabase):
             )
             existing = cursor.fetchone()
             if existing:
-                existing_id, old_info = existing["id"], existing["info"] or ""
+                existing_id = cast(int, existing["id"])
+                old_info = existing["info"] or ""
                 # Consolidar info: mantenir l'antiga, afegir la nova després
                 consolidated_info = self._merge_info(old_info, info)
                 cursor.execute(
@@ -313,7 +378,7 @@ class TramitacioDatabase(BaseDatabase):
                 """,
                     (numero, any, data, info, color, reminder_at),
                 )
-                tramit_id = cursor.lastrowid
+                tramit_id = cast(int, cursor.lastrowid)
                 logger.info(f"Tramitació creada amb ID: {tramit_id} (upsert)")
             return tramit_id
 
@@ -336,7 +401,7 @@ class TramitacioDatabase(BaseDatabase):
 
     # --- Consultes d'Alarmes ---
 
-    def get_alarms(self, include_past: bool = False) -> List[Dict[str, Any]]:
+    def get_alarms(self, include_past: bool = False) -> list[dict[str, Any]]:
         """Obté tots els tràmits amb alarma ordenats cronològicament.
         Per defecte només mostra els futurs. include_past=True mostra tot."""
         with self._get_connection() as conn:
@@ -399,7 +464,7 @@ class TramitacioDatabase(BaseDatabase):
             logger.info("VACUUM completat")
             return "Base de dades optimitzada (VACUUM)"
 
-    def get_database_stats(self) -> Dict[str, Any]:
+    def get_database_stats(self) -> dict[str, Any]:
         """Retorna estadístiques de la base de dades."""
         with self._get_connection() as conn:
             cursor = conn.cursor()

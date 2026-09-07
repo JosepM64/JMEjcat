@@ -3,54 +3,42 @@ Finestra flotant per al mòdul de Tramitació
 Gestió de tràmits amb grid, ordenació, cerca i colors
 """
 
-import logging
 import csv
+import logging
 from pathlib import Path
-from typing import Optional
 
+from PySide6.QtCore import QDate, Qt
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
-    QVBoxLayout,
+    QFileDialog,
     QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QProgressDialog,
+    QPushButton,
     QTableWidget,
     QTableWidgetItem,
-    QPushButton,
-    QLineEdit,
-    QLabel,
-    QMessageBox,
+    QVBoxLayout,
     QWidget,
-    QComboBox,
-    QMenu,
-    QFileDialog,
-    QProgressDialog,
 )
-from PySide6.QtCore import Qt, QDate
-from PySide6.QtGui import QAction, QColor
 
-from tramitacio_database import TramitacioDatabase
+from core.tramit_colors import TRAMIT_COLORS
 from pdf_exporter import export_table_to_pdf
-from ui.tramitacio_edit_dialog import TramitacioEditDialog
 from tramitacio_alarms import TramitacioAlarmsDialog
+from tramitacio_database import TramitacioDatabase
+from ui.tramitacio_edit_dialog import TramitacioEditDialog
 
 logger = logging.getLogger(__name__)
-
-# Colors disponibles per als markers (semitransparents)
-TRAMIT_COLORS = {
-    "": ("Sense color", QColor(0, 0, 0, 0)),
-    "vermell": ("Vermell (Pendent)", QColor(255, 0, 0, 80)),
-    "taronja": ("Taronja (Urgent)", QColor(255, 165, 0, 80)),
-    "groc": ("Groc (Atenció)", QColor(255, 255, 0, 80)),
-    "verd": ("Verd (Fet)", QColor(0, 255, 0, 80)),
-    "blau": ("Blau (Info)", QColor(0, 0, 255, 80)),
-    "lila": ("Lila (Especial)", QColor(128, 0, 128, 80)),
-    "gris": ("Gris (Archivat)", QColor(128, 128, 128, 80)),
-}
 
 
 class TramitacioWindow(QDialog):
     """Finestra flotant per a la gestió de Tramitació."""
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         # Reusar la BD del pare (MainWindow) si està disponible
         if parent is not None and hasattr(parent, "tramit_db"):
@@ -115,6 +103,12 @@ class TramitacioWindow(QDialog):
         self.btn_clear_filters = QPushButton("Netejar")
         self.btn_clear_filters.clicked.connect(self.clear_filters)
         search_layout.addWidget(self.btn_clear_filters)
+
+        self.btn_today = QPushButton("Avui")
+        self.btn_today.setCheckable(True)
+        self.btn_today.setToolTip("Mostrar només els tràmits d'avui")
+        self.btn_today.toggled.connect(self.on_search_changed)
+        search_layout.addWidget(self.btn_today)
 
         search_layout.addStretch()
         layout.addLayout(search_layout)
@@ -199,13 +193,16 @@ class TramitacioWindow(QDialog):
             numero = self.search_numero.text().strip()
             any_text = self.search_any.text().strip()
             color_filter = self.color_filter.currentData()
+            data_filter = None
+            if hasattr(self, "btn_today") and self.btn_today.isChecked():
+                data_filter = QDate.currentDate().toString("dd/MM/yyyy")
 
             any_val = None
             if any_text.isdigit():
                 any_val = int(any_text)
 
-            if numero or any_val or color_filter:
-                tramits = self.db.search_tramits(numero, any_val, color_filter)
+            if numero or any_val or color_filter or data_filter:
+                tramits = self.db.search_tramits(numero, any_val, color_filter, data_filter)
             else:
                 tramits = self.db.get_all_tramits(color_filter)
 
@@ -339,6 +336,8 @@ class TramitacioWindow(QDialog):
         self.search_numero.clear()
         self.search_any.clear()
         self.color_filter.setCurrentIndex(0)  # "Tots" colors
+        if hasattr(self, "btn_today"):
+            self.btn_today.setChecked(False)
 
     def show_context_menu(self, pos):
         """Mostra el menú contextual per canviar colors."""

@@ -1,4 +1,4 @@
-import sqlite3, traceback
+import sqlite3
 
 db_path = r'D:\Documents\Programació\JMEJCat\dist\JMEJCat\data\tramitacio.db'
 db = sqlite3.connect(db_path)

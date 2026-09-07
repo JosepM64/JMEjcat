@@ -6,17 +6,19 @@ Diàleg per visualitzar imatges a mida completa amb navegació
 import logging
 from pathlib import Path
 
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QPainter, QPixmap
 from PySide6.QtWidgets import (
     QDialog,
-    QVBoxLayout,
+    QGraphicsPixmapItem,
+    QGraphicsScene,
+    QGraphicsView,
     QHBoxLayout,
-    QPushButton,
     QLabel,
     QMessageBox,
+    QPushButton,
+    QVBoxLayout,
 )
-from PySide6.QtGui import QPixmap, QPainter
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +27,7 @@ class ImageViewer(QDialog):
     """Diàleg per visualitzar imatges a mida completa amb navegació."""
 
     def __init__(
-        self, image_path: Path, all_images: list = None, current_index: int = 0
+        self, image_path: Path, all_images: list[Path] | None = None, current_index: int = 0
     ):
         super().__init__()
         self.setWindowTitle("Visualitzador d'Imatge - JMEJCat")

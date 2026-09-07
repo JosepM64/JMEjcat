@@ -3,16 +3,16 @@ Backup manager for JMEJCat
 Provides backup, restore, and verification functions for databases and images.
 """
 
-import shutil
 import logging
+import shutil
 import sqlite3
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any
 
-from config import DB_FILENAME, DB_FILENAME_TRAMITACIO, BACKUP_COUNT
-from utils import get_data_path, get_backups_path
+from config import BACKUP_COUNT, DB_FILENAME, DB_FILENAME_TRAMITACIO
+from utils import get_backups_path, get_data_path
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +108,14 @@ class BackupManager:
             logger.error(f"Backup not found: {backup_path}")
             return False
 
+        # 2.7: verificar integritat abans de restaurar
+        verification = BackupManager.verify_backup_file(backup_path)
+        if not verification.get("valid"):
+            logger.error(
+                f"Backup invàlid, restauració abortada: {backup_path} — {verification.get('error')}"
+            )
+            return False
+
         try:
             # Determine backup type
             if backup_filename.startswith("backup_images_"):
@@ -163,7 +171,7 @@ class BackupManager:
             return False
 
     @staticmethod
-    def get_backup_list(db_name: Optional[str] = None) -> list:
+    def get_backup_list(db_name: str | None = None) -> list:
         """
         Gets the list of available backups.
 
@@ -177,7 +185,7 @@ class BackupManager:
         backups_path = get_backups_path()
 
         try:
-            all_backups = []
+            all_backups: list[dict[str, Any]] = []
 
             # Search for notes backups (new format: backup_notes_jmejcat.db.backup_TIMESTAMP)
             notes_backups = list(backups_path.glob("backup_notes_*.backup_*"))
@@ -269,8 +277,8 @@ class BackupManager:
             for bf in images_backups:
                 try:
                     # Extract timestamp: backup_images_20260320_120000.zip
-                    parts = bf.name.replace("backup_images_", "").replace(".zip", "")
-                    timestamp = parts
+                    ts_part = bf.name.replace("backup_images_", "").replace(".zip", "")
+                    timestamp = ts_part
 
                     dt = datetime.strptime(timestamp, "%Y%m%d_%H%M%S")
                     readable_date = dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -301,9 +309,9 @@ class BackupManager:
             return []
 
     @staticmethod
-    def verify_backup_file(backup_path: Path) -> Dict[str, Any]:
+    def verify_backup_file(backup_path: Path) -> dict[str, Any]:
         """Verifies the integrity of a backup file."""
-        result = {"valid": False, "error": None, "size_kb": 0.0, "type": None}
+        result: dict[str, Any] = {"valid": False, "error": None, "size_kb": 0.0, "type": None}
         if not backup_path.exists():
             result["error"] = "File does not exist"
             return result
@@ -329,29 +337,35 @@ class BackupManager:
                 result["type"] = "Tramitació"
             else:
                 result["type"] = "Notes"
+            conn = None
             try:
                 conn = sqlite3.connect(str(backup_path))
                 cur = conn.cursor()
                 cur.execute("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1")
                 _ = cur.fetchone()
-                conn.close()
                 result["valid"] = True
             except sqlite3.DatabaseError as e:
                 result["error"] = f"Corrupt database: {e}"
             except Exception as e:
                 result["error"] = f"Error opening DB: {e}"
+            finally:
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
             return result
         result["error"] = "Unrecognized backup type"
         return result
 
     @staticmethod
-    def verify_backups_in_folder(folder_path: Path) -> List[Dict[str, Any]]:
+    def verify_backups_in_folder(folder_path: Path) -> list[dict[str, Any]]:
         """Verifies all backups in a folder."""
         if not folder_path.exists() or not folder_path.is_dir():
             logger.error(f"Invalid folder: {folder_path}")
             return []
         try:
-            backups = []
+            backups: list[dict[str, Any]] = []
             for file_path in folder_path.iterdir():
                 if not file_path.is_file():
                     continue
@@ -391,7 +405,7 @@ class BackupManager:
                     mtime = file_path.stat().st_mtime
                     dt = datetime.fromtimestamp(mtime)
                     readable_date = dt.strftime("%Y-%m-%d %H:%M:%S")
-                backup_info = {
+                backup_info: dict[str, Any] = {
                     "filename": fname,
                     "path": file_path,
                     "date": readable_date,
@@ -433,7 +447,7 @@ class BackupManager:
             backups = [b for b in backups if b["backup_type"] == backup_type]
 
         # Group by database type (Notes, Tramitació, Imatges)
-        backups_by_db_type = {}
+        backups_by_db_type: dict[str, list[dict[str, Any]]] = {}
         for backup in backups:
             dbtype = backup["db_type"]
             backups_by_db_type.setdefault(dbtype, []).append(backup)

@@ -1,8 +1,8 @@
 """Menu, toolbar and shortcut setup mixin for MainWindow."""
 
-from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QToolBar, QLabel
 from PySide6.QtCore import QSize
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QLabel, QToolBar
 
 
 class UiWindowMenuMixin:

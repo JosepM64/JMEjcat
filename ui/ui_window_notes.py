@@ -2,21 +2,22 @@
 
 import logging
 
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
+    QApplication,
     QLineEdit,
-    QTextEdit,
     QListWidgetItem,
     QMessageBox,
-    QApplication,
+    QTextEdit,
 )
-from PySide6.QtCore import Qt, QTimer
 
 from calculator import CalculatorDialog
 from config import (
+    AUTOSAVE_INTERVAL,
+    EXAMPLES_MAX_LENGTH,
+    SEARCH_DELAY_MS,
     TITLE_TRUNCATE_LENGTH,
     TITLE_TRUNCATE_SUFFIX,
-    EXAMPLES_MAX_LENGTH,
-    AUTOSAVE_INTERVAL,
 )
 
 logger = logging.getLogger(__name__)
@@ -168,7 +169,16 @@ class UiWindowNotesMixin:
         logger.info(f"Notas cargadas: {len(notes)}")
 
     def on_search(self):
-        """Filtra notes segons el text de cerca."""
+        """Filtra notes segons el text de cerca (amb debounce 300 ms)."""
+        # Debounce: reinicia el timer a cada pulsació
+        if not hasattr(self, "_search_timer") or self._search_timer is None:
+            self._search_timer = QTimer(self)
+            self._search_timer.setSingleShot(True)
+            self._search_timer.timeout.connect(self._do_search)
+        self._search_timer.start(SEARCH_DELAY_MS)
+
+    def _do_search(self):
+        """Execució real de la cerca (crida pel timer debounce)."""
         query = self.search_input.text().strip()
         if query:
             notes = self.db.search_notes(query)

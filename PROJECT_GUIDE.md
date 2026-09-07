@@ -5,12 +5,12 @@
 Copia i enganxa això en iniciar una sessió amb l'agent:
 
 ```
-Aquest és el projecte JMEJCat (v3.55), gestió d'apunts i control d'expedients
+Aquest és el projecte JMEJCat (v3.62), gestió d'apunts i control d'expedients
 d'un tramitador d'un jutjat civil de Barcelona. Python 3.13 + PySide6 + SQLite (WAL).
 
 Per entendre el projecte ràpidament:
 1. Llegeix AGENTS.md (estat, estructura, regles) i CHANGELOG.md (històric)
-2. Executa la verificació: python verify_automatica.py (49 checks)
+2. Executa la verificació: python verify_automatica.py (50 checks) + pytest/ruff/mypy
 
 Arxius clau:
 - jmejcat.py (entrada, lock d'instància única)
@@ -41,25 +41,26 @@ de Barcelona.
 ```
 JMEJCat/
 ├── jmejcat.py              # Punt d'entrada (logging, lock, excepthook)
-├── ui_window.py            # MainWindow (composta amb 8 mixins del paquet ui/)
-├── ui/                     # Mixins: menu, editor, formatting, notes, images,
+├── ui_window.py            # MainWindow (8 mixins + backup periòdic 30 min)
+├── ui/                     # Mixins: menu, editor, formatting, notes (debounce 300ms), images,
 │                           #   export, backup, tramitacio + tramitacio_edit_dialog
-├── core/base_database.py   # BaseDatabase: connexió persistent WAL + FK
-├── database.py             # BD notes (taules notes + images)
-├── tramitacio_database.py  # BD tramitació (upsert, alarmes, manteniment)
-├── tramitacio_window.py    # Finestra de tramitació (taula, filtres, export)
+├── core/base_database.py   # BaseDatabase: WAL + FK + Lock + migrate schema_version (v2)
+├── database.py             # BD notes (CHECK title 100, examples 500, paginació 200)
+├── tramitacio_database.py  # BD tramitació (CHECK numero/any/data, Avui, paginació, upsert)
+├── tramitacio_window.py    # Finestra tramitació (filtre Avui, taula, export)
 ├── tramitacio_alarms.py    # Alarmes cronològiques
-├── backup_manager.py       # Backups via API sqlite3 (snapshot WAL consistent)
+├── backup_manager.py       # Backups via API sqlite3 + verify abans restaurar
 ├── image_manager.py        # Imatges: hash SHA256, miniatures, originals
 ├── image_viewer.py         # Visor (zoom Ctrl+roda, F11, límit 100% al fit)
 ├── image_gallery.py        # Galeria de miniatures
 ├── pdf_exporter.py         # Export PDF (QThread + signals)
 ├── md_exporter.py          # Export Markdown
 ├── calculator.py           # Calculadora despeses/pagaments
-├── config.py               # Constants i APP_VERSION (font única de versió)
+├── config.py               # Constants i APP_VERSION=3.62 / DB_VERSION=2
 ├── utils.py                # Rutes (app/data/images/backups)
 ├── query.js                # CLI Node per consultar les BD (better-sqlite3)
-├── verify_automatica.py    # Verificació automàtica (49 checks)
+├── verify_automatica.py    # Verificació automàtica (50 checks)
+├── .github/workflows/ci.yml # CI windows-latest (ruff/mypy/pytest/verify)
 └── data/                   # Dades de l'usuari (MAI al repo ni al build)
 ```
 
@@ -68,11 +69,14 @@ JMEJCat/
 ## Checklist obligatori abans de cada release
 
 ```bash
-python verify_automatica.py    # Ha de dir: PASADOS: 49
+python verify_automatica.py    # Ha de dir: PASADOS: 50
+C:\Users\JM\miniconda3\envs\jm_pyside_313\python.exe -m ruff check .
+C:\Users\JM\miniconda3\envs\jm_pyside_313\python.exe -m mypy .
+C:\Users\JM\miniconda3\envs\jm_pyside_313\python.exe -m pytest -q
 ```
 
-La versió viu NOMÉS a `config.py` (APP_VERSION); `build.bat` la llegeix per
-generar el README del dist. Recorda actualitzar CHANGELOG.md i AGENTS.md.
+La versió viu a `config.py` (APP_VERSION) + `pyproject.toml` (version); `build.bat` la llegeix.
+Recorda actualitzar CHANGELOG.md, AGENTS.md i HANDOVER.md.
 
 ---
 
@@ -98,7 +102,7 @@ generar el README del dist. Recorda actualitzar CHANGELOG.md i AGENTS.md.
 
 ---
 
-**Última actualització:** 2026-08-25
-**Versió:** 3.55
+**Última actualització:** 2026-09-07
+**Versió:** 3.62
 **Desenvolupador:** Josep Maria Tapia Estaragues
 **Llicència:** LGPL v3

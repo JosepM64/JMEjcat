@@ -3,18 +3,18 @@ Mòdul de càlculs senzills per a JMEJCat
 Proporciona utilitats per a despeses i restes de pagaments
 """
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog,
-    QVBoxLayout,
-    QHBoxLayout,
-    QGridLayout,
-    QLabel,
     QDoubleSpinBox,
     QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
     QPushButton,
-    QApplication,
+    QVBoxLayout,
 )
-from PySide6.QtCore import QTimer
 
 
 class CustomSpinBox(QDoubleSpinBox):

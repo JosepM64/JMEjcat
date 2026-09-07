@@ -1,6 +1,7 @@
 """Tramitacio integration, reminder system, and snooze mixin for MainWindow."""
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -8,7 +9,10 @@ logger = logging.getLogger(__name__)
 class UiWindowTramitacioMixin:
     """Mixin: Tramitacio integration, reminder system, snooze."""
 
-    def open_tramitacio(self, tramit_id: int = None):
+    # Atribut creat dinàmicament a open_tramitacio (import lazy de la classe)
+    tramitacio_window: Any
+
+    def open_tramitacio(self, tramit_id: int | None = None):
         """Obre la finestra de Tramitació. Si tramit_id, obre directament aquell tràmit."""
         if (
             hasattr(self, "tramitacio_window")
@@ -69,12 +73,13 @@ class UiWindowTramitacioMixin:
     def _show_reminder_dialog(self, tramit, now):
         """Mostra diàleg d'avís amb opcions d'ajornament."""
         from datetime import datetime, timedelta
+
         from PySide6.QtWidgets import (
             QDialog,
-            QVBoxLayout,
             QHBoxLayout,
-            QPushButton,
             QLabel,
+            QPushButton,
+            QVBoxLayout,
         )
 
         tramit_id = tramit["id"]
@@ -176,7 +181,8 @@ class UiWindowTramitacioMixin:
                     self.triggered_reminders.clear()
                     self.statusBar().showMessage("Avisos reactivats", 3000)
                 else:
-                    from datetime import datetime as dt_mod, timedelta as td_mod
+                    from datetime import datetime as dt_mod
+                    from datetime import timedelta as td_mod
 
                     far_future = dt_mod.now() + td_mod(days=365 * 10)
                     tramits = self.tramit_db.get_all_tramits(None)
@@ -218,7 +224,7 @@ class UiWindowTramitacioMixin:
 
     def snooze_all_today(self):
         """Silencia tots els avisos d'avui. Botó toggle."""
-        from datetime import datetime, timedelta, time
+        from datetime import datetime, time, timedelta
 
         if self.snooze_all_active:
             self.snooze_all_active = False

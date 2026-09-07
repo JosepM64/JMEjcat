@@ -6,25 +6,25 @@ Separats de ui_window.py per mantenir SoC
 import logging
 from pathlib import Path
 
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QDialog,
-    QVBoxLayout,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QPushButton,
-    QFileDialog,
     QMessageBox,
-    QLineEdit,
+    QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QVBoxLayout,
 )
-from PySide6.QtGui import QColor
-from PySide6.QtCore import Qt
 
-from utils import get_backups_path
 from backup_manager import BackupManager
+from utils import get_backups_path
 
 logger = logging.getLogger(__name__)
 

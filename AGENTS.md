@@ -2,7 +2,10 @@
 
 ## Descripció
 Gestió d'apunts i control d'expedients per a un tramitador d'un jutjat de lo civil (Barcelona). Portable i offline. Python 3.13 + PySide6 + SQLite (WAL).
-- **Versió**: 3.57 | **Data**: 2026-08-25 | **Build**: ~110 MB
+- **Versió**: 3.62 | **Data**: 2026-09-07 | **Build**: ~117 MB
+- **Sprint actual**: Sprint 2 (P1) — 2.3-2.10 lliurats (CI, paginació, Avui, debounce, backup verify/periodic, CHECK, migracions)
+- **Document de millores**: `JMEJCat_Millores_Definitives.md` (full de ruta tècnic)
+- **Handover per a l'equip següent**: `HANDOVER.md` (resum executiu + pròxims pasos)
 - **Repo**: https://github.com/JosepM64/JMEjcat (públic, branch `main`)
 
 ## Estructura
@@ -60,6 +63,9 @@ node query.js c all                      # Checkpoint WAL
 ```
 
 ## Últimes versions
+- **v3.62 (2026-09-07)** Sprint 2 P1: CI GitHub Actions (windows-latest); paginació `get_all_*` limit/offset 200; filtre Avui a Tramitació; debounce cerca 300 ms; backup verify abans de restaurar + periòdic 30 min; CHECK constraints (títol 100, exemples 500, numero 1-5 dígits, any 1000-9999, data dd/MM/yyyy) validats a C:/varis 0 violacions; migracions versionades `schema_version` DB_VERSION=2.
+- **v3.61 (2026-09-06)** Sprint 2 (tooling): suite pytest real (70 tests, cobertura 70%); `pyproject.toml` amb Ruff + mypy; 110 errors Ruff corregits → 0; 821 errors mypy corregits → 0.
+- **v3.60 (2026-09-04)** Sprint 1 (Quick Wins P0): TRAMIT_COLORS centralitzat a `core/tramit_colors.py`; `validate_date` unificat a `utils`; `Path` natiu a `sqlite3.connect`; thread-safety BD (Lock + `busy_timeout=5000`); hash d'imatges robust amb deduplicació; log rotation 30 dies.
 - **v3.57 (2026-08-25)**: el zoom també escala el text dels editors (QTextEdit.document().setDefaultFont a _apply_ui_font — el defaultFont no segueix la font de l'app)
 - **v3.56 (2026-08-25)**: zoom Ctrl +/- amb context d'aplicació — funciona també a l'editor expandit de Solució i la finestra de Tramitació
 - **v3.55 (2026-08-25)**: visor "ajustar" limitat al 100% (mai ampliar → nitidesa); cerca amb %/_ literal (ESCAPE); recordatoris accepten dates ISO qualssevol; fora doble closeEvent a Tramitació; ajuda "Quant a" amb dreceres; llibreries al dia
