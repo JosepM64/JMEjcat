@@ -174,23 +174,45 @@ class Database(BaseDatabase):
             cursor.execute(query, params)
             return [dict(row) for row in cursor.fetchall()]
 
-    def search_notes(self, query: str) -> list[dict[str, Any]]:
-        """Busca notes per títol (cerca parcial)."""
+    def search_notes(
+        self,
+        query: str,
+        fields: list[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = 0,
+    ) -> list[dict[str, Any]]:
+        """Busca notes per camps (v4.0: unificat amb core/search.py).
+
+        Args:
+            query: text a cercar (parcial, literal amb ESCAPE).
+            fields: columnes on cercar (per defecte SEARCH_FIELDS de config).
+            limit: màxim resultats (None = sense límit).
+            offset: desplaçament per paginació.
+        """
+        from config import SEARCH_FIELDS
+        from core.search import like_param
+
+        if fields is None:
+            fields = list(SEARCH_FIELDS)
+        # Columnes permeses (evita injecció via nom de columna)
+        allowed = {"title", "request", "solution", "examples"}
+        fields = [f for f in fields if f in allowed] or ["title"]
+        search_term = like_param(query)
+        where = " OR ".join(f"{f} LIKE ? ESCAPE '\\'" for f in fields)
+        sql = f"SELECT * FROM notes WHERE ({where}) ORDER BY updated_at DESC"
+        params: list[Any] = [search_term] * len(fields)
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(limit)
+            if offset:
+                sql += " OFFSET ?"
+                params.append(offset)
+        elif offset:
+            sql += " LIMIT -1 OFFSET ?"
+            params.append(offset)
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            # Escapar %, _ i \\ perquè es busquin literalment (ESCAPE '\')
-            escaped = (
-                query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            )
-            search_term = f"%{escaped}%"
-            cursor.execute(
-                """
-                SELECT * FROM notes
-                WHERE title LIKE ? ESCAPE '\\'
-                ORDER BY updated_at DESC
-            """,
-                (search_term,),
-            )
+            cursor.execute(sql, params)
             return [dict(row) for row in cursor.fetchall()]
 
     # --- Operaciones para imágenes ---

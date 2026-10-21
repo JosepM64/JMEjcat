@@ -169,8 +169,21 @@ class UiWindowNotesMixin:
         logger.info(f"Notas cargadas: {len(notes)}")
 
     def on_search(self):
-        """Filtra notes segons el text de cerca (amb debounce 300 ms)."""
-        # Debounce: reinicia el timer a cada pulsació
+        """Filtra per títol (buida la caixa de text: mana l'última tocada)."""
+        self.search_text_input.blockSignals(True)
+        self.search_text_input.clear()
+        self.search_text_input.blockSignals(False)
+        self._debounced_search()
+
+    def on_search_text(self):
+        """Filtra pel cos (petició/solució); buida la caixa de títol."""
+        self.search_input.blockSignals(True)
+        self.search_input.clear()
+        self.search_input.blockSignals(False)
+        self._debounced_search()
+
+    def _debounced_search(self):
+        """Arrenca el timer de debounce (300 ms) compartit per les dues caixes."""
         if not hasattr(self, "_search_timer") or self._search_timer is None:
             self._search_timer = QTimer(self)
             self._search_timer.setSingleShot(True)
@@ -179,9 +192,12 @@ class UiWindowNotesMixin:
 
     def _do_search(self):
         """Execució real de la cerca (crida pel timer debounce)."""
-        query = self.search_input.text().strip()
-        if query:
-            notes = self.db.search_notes(query)
+        title_q = self.search_input.text().strip()
+        body_q = self.search_text_input.text().strip()
+        if title_q:
+            notes = self.db.search_notes(title_q, fields=["title"])
+        elif body_q:
+            notes = self.db.search_notes(body_q, fields=["request", "solution"])
         else:
             notes = self.db.get_all_notes()
         self._populate_notes_list(notes)
@@ -190,18 +206,31 @@ class UiWindowNotesMixin:
         """Carga una nota seleccionada."""
         note_id = item.data(Qt.UserRole)
 
-        # Verificar si el editor ampliat està obert
+        # Verificar si el editor ampliat està obert (fix v4.2: sempre
+        # protegeix, no només si isModified — el diàleg és de la nota
+        # d'origen i desar-hi altrament sobreescriuria la nota nova).
         if (
             hasattr(self, "expand_dialog")
             and self.expand_dialog is not None
             and self.expand_dialog.isVisible()
         ):
             editor = self.expand_dialog.findChild(QTextEdit)
+            original = getattr(self, "_expanded_original_html", None)
+            dirty = bool(
+                editor
+                and (
+                    (original is not None and editor.toHtml() != original)
+                    or editor.document().isModified()
+                )
+            )
 
-            if editor and editor.document().isModified():
+            if dirty:
                 msg_box = QMessageBox(self)
                 msg_box.setWindowTitle("Canvis pendents")
-                msg_box.setText("L'editor ampliat té canvis pendents. Vols desar-los?")
+                msg_box.setText(
+                    "L'editor ampliat té canvis pendents. Vols desar-los "
+                    "a la seva nota d'origen?"
+                )
                 msg_box.setStandardButtons(
                     QMessageBox.StandardButton.Yes
                     | QMessageBox.StandardButton.No
@@ -218,30 +247,22 @@ class UiWindowNotesMixin:
                     return
 
                 if reply == QMessageBox.StandardButton.Yes:
-                    # Desar contingut al camp principal
-                    solution = editor.toHtml()
-                    self.solution_edit.setHtml(solution)
+                    # Desa a la nota d'origen (la principal no es toca)
+                    self._save_expanded_editor(editor, None)
 
-                    # Actualitzar a la base de dades
-                    title = self.title_input.text()
-                    request = self.request_edit.toHtml()
-                    examples_text = self.examples_edit.text()
-                    self.db.update_note(
-                        self.current_note_id, title, request, solution, examples_text
-                    )
+                self.current_note_modified = False
+                self.load_notes()
 
-                    self.current_note_modified = False
-                    self.load_notes()
-
-                # Tancar l'editor ampliat i programar carregar la nota
-                target_note_id = note_id
-                dialog = self.expand_dialog
-                self.expand_dialog = None
-                dialog.close()
-                QTimer.singleShot(
-                    100, lambda: self._finish_note_change(dialog, target_note_id)
-                )
-                return
+            # Tancar l'editor ampliat i programar carregar la nota
+            target_note_id = note_id
+            dialog = self.expand_dialog
+            self.expand_dialog = None
+            self._expanded_note_id = None
+            dialog.close()
+            QTimer.singleShot(
+                100, lambda: self._finish_note_change(dialog, target_note_id)
+            )
+            return
 
         # Verificar si hi ha canvis a la nota actual
         if self.current_note_modified:
@@ -313,6 +334,31 @@ class UiWindowNotesMixin:
 
     def new_note(self):
         """Crea una nueva nota."""
+        # Fix v4.2: si l'expandit és obert, tancar-lo primer (pertany a
+        # una nota existent; altrament quedaria orfe apuntant al buit).
+        if (
+            hasattr(self, "expand_dialog")
+            and self.expand_dialog is not None
+            and self.expand_dialog.isVisible()
+        ):
+            editor = self.expand_dialog.findChild(QTextEdit)
+            original = getattr(self, "_expanded_original_html", None)
+            if editor and original is not None and editor.toHtml() != original:
+                reply = QMessageBox.question(
+                    self,
+                    "Canvis pendents",
+                    "L'editor ampliat té canvis pendents. Vols desar-los "
+                    "a la seva nota d'origen?",
+                    QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
+                )
+                if reply == QMessageBox.Cancel:
+                    return
+                if reply == QMessageBox.Yes:
+                    self._save_expanded_editor(editor, None)
+            dialog = self.expand_dialog
+            self.expand_dialog = None
+            self._expanded_note_id = None
+            dialog.close()
         # Preguntar si guardar canvis
         if self.current_note_modified:
             msgBox = QMessageBox(self)
@@ -354,8 +400,10 @@ class UiWindowNotesMixin:
                 and not self._loading_note):
             return
 
-        # Si l'editor expandit està obert i modificat, sincronitzar flag
-        if (hasattr(self, 'expand_dialog') and self.expand_dialog is not None
+        # Si l'editor expandit (de la nota actual) està modificat, sincronitzar flag
+        if (
+            getattr(self, "_expanded_note_id", None) == self.current_note_id
+            and hasattr(self, 'expand_dialog') and self.expand_dialog is not None
                 and self.expand_dialog.isVisible()):
             editor = self.expand_dialog.findChild(QTextEdit)
             if editor and editor.document().isModified():
@@ -392,6 +440,19 @@ class UiWindowNotesMixin:
                 f"Els exemples no poden excedir {EXAMPLES_MAX_LENGTH} caràcters.",
             )
             return
+
+        # Fix v4.2: si l'expandit és de la nota actual i té text més nou,
+        # sincronitzar-lo abans de desar (la principal quedaria obsoleta).
+        if (
+            getattr(self, "_expanded_note_id", None) == self.current_note_id
+            and hasattr(self, "expand_dialog")
+            and self.expand_dialog is not None
+            and self.expand_dialog.isVisible()
+        ):
+            editor = self.expand_dialog.findChild(QTextEdit)
+            original = getattr(self, "_expanded_original_html", None)
+            if editor and original is not None and editor.toHtml() != original:
+                self.solution_edit.setHtml(editor.toHtml())
 
         # Obtener contenido
         request = self.request_edit.toHtml()

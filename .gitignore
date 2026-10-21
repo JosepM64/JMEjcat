@@ -18,6 +18,11 @@ jmejcat_crash.log
 build/
 dist/
 
+# Coverage (pytest-cov)
+.coverage
+.coverage.*
+htmlcov/
+
 # Node (eina query.js)
 node_modules/
 

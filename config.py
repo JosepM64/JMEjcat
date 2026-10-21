@@ -11,7 +11,7 @@ from pathlib import Path
 # ============================================================================
 
 APP_NAME = "JMEJCat"
-APP_VERSION = "3.62"
+APP_VERSION = "4.3"
 APP_AUTHOR = "Josep Maria Tapia Estaragues"
 APP_WEBSITE = "https://www.posicionamientowebysem.com/"
 APP_LICENSE = "LGPL v3"
@@ -120,8 +120,8 @@ FONTS = {
 # Tiempo de espera antes de realizar búsqueda (en ms)
 SEARCH_DELAY_MS = 300
 
-# Campos en los que buscar (actualmente solo título)
-SEARCH_FIELDS = ["title"]
+# Campos en los que buscar (v4.0: títol + contingut)
+SEARCH_FIELDS = ["title", "request", "solution"]
 
 # ============================================================================
 # CONFIGURACIÓN DE RENDIMIENTO

@@ -9,19 +9,24 @@ import sqlite3
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from config import BACKUP_COUNT, DB_FILENAME, DB_FILENAME_TRAMITACIO
 from utils import get_backups_path, get_data_path
 
 logger = logging.getLogger(__name__)
 
+BackupType = Literal["all", "notes", "images"]
+
+BackupInfo = dict[str, Any]
+VerifyResult = dict[str, Any]
+
 
 class BackupManager:
     """Manages backup operations for databases and images."""
 
     @staticmethod
-    def backup_database(backup_type: str = "all") -> bool:
+    def backup_database(backup_type: BackupType = "all") -> bool:
         """
         Creates a backup of the database and/or images.
 
@@ -90,19 +95,23 @@ class BackupManager:
         return success
 
     @staticmethod
-    def restore_backup(backup_filename: str) -> bool:
+    def restore_backup(backup_filename: str | Path) -> bool:
         """
         Restores a backup (databases or images).
 
         Args:
-            backup_filename: Name of the backup file.
-
+            backup_filename: Name of the backup file (o Path complet).
         Returns:
             bool: True if restoration was successful, False otherwise.
         """
         backups_path = get_backups_path()
         data_path = get_data_path()
-        backup_path = backups_path / backup_filename
+        backup_path = (
+            backup_filename
+            if isinstance(backup_filename, Path) and backup_filename.is_absolute()
+            else backups_path / Path(backup_filename).name
+        )
+        filename = backup_path.name
 
         if not backup_path.exists():
             logger.error(f"Backup not found: {backup_path}")
@@ -118,7 +127,7 @@ class BackupManager:
 
         try:
             # Determine backup type
-            if backup_filename.startswith("backup_images_"):
+            if filename.startswith("backup_images_"):
                 # Restore images
                 images_path = data_path / "images"
                 images_path.mkdir(parents=True, exist_ok=True)
@@ -128,31 +137,29 @@ class BackupManager:
 
                 logger.info(f"Images backup restored from: {backup_path}")
 
-            elif backup_filename.startswith("backup_notes_"):
+            elif filename.startswith("backup_notes_"):
                 # Restore databases - determine which database
-                db_match = backup_filename.replace("backup_notes_", "").split(
-                    ".backup_"
-                )[0]
+                db_match = filename.replace("backup_notes_", "").split(".backup_")[0]
 
                 if db_match == DB_FILENAME:
                     db_to_restore = DB_FILENAME
                 elif db_match == DB_FILENAME_TRAMITACIO:
                     db_to_restore = DB_FILENAME_TRAMITACIO
                 else:
-                    logger.error(f"Unrecognized notes backup: {backup_filename}")
+                    logger.error(f"Unrecognized notes backup: {filename}")
                     return False
 
                 db_path = data_path / db_to_restore
                 shutil.copy2(backup_path, db_path)
                 logger.info(f"Notes backup restored from: {backup_path}")
 
-            elif backup_filename.startswith("jmejcat.db.backup_"):
+            elif filename.startswith("jmejcat.db.backup_"):
                 # Old format: jmejcat.db.backup_TIMESTAMP
                 db_path = data_path / DB_FILENAME
                 shutil.copy2(backup_path, db_path)
                 logger.info(f"Notes backup (old format) restored from: {backup_path}")
 
-            elif backup_filename.startswith("tramitacio.db.backup_"):
+            elif filename.startswith("tramitacio.db.backup_"):
                 # Old format: tramitacio.db.backup_TIMESTAMP
                 db_path = data_path / DB_FILENAME_TRAMITACIO
                 shutil.copy2(backup_path, db_path)
@@ -161,7 +168,7 @@ class BackupManager:
                 )
 
             else:
-                logger.error(f"Unrecognized backup type: {backup_filename}")
+                logger.error(f"Unrecognized backup type: {filename}")
                 return False
 
             return True
@@ -171,7 +178,7 @@ class BackupManager:
             return False
 
     @staticmethod
-    def get_backup_list(db_name: str | None = None) -> list:
+    def get_backup_list(db_name: str | None = None) -> list[BackupInfo]:
         """
         Gets the list of available backups.
 
@@ -300,7 +307,14 @@ class BackupManager:
                     logger.warning(f"Error processing backup {bf.name}: {e}")
 
             # Sort by timestamp (most recent first)
-            all_backups.sort(key=lambda x: x["timestamp"], reverse=True)
+            all_backups.sort(key=lambda x: str(x["timestamp"]), reverse=True)
+
+            if db_name:
+                all_backups = [
+                    b
+                    for b in all_backups
+                    if db_name in str(b["filename"])
+                ]
 
             return all_backups
 
@@ -309,18 +323,19 @@ class BackupManager:
             return []
 
     @staticmethod
-    def verify_backup_file(backup_path: Path) -> dict[str, Any]:
+    def verify_backup_file(backup_path: Path | str) -> VerifyResult:
         """Verifies the integrity of a backup file."""
-        result: dict[str, Any] = {"valid": False, "error": None, "size_kb": 0.0, "type": None}
-        if not backup_path.exists():
+        path = Path(backup_path)
+        result: VerifyResult = {"valid": False, "error": None, "size_kb": 0.0, "type": None}
+        if not path.exists():
             result["error"] = "File does not exist"
             return result
-        result["size_kb"] = backup_path.stat().st_size / 1024
-        filename = backup_path.name
+        result["size_kb"] = path.stat().st_size / 1024
+        filename = path.name
         if filename.startswith("backup_images_") and filename.endswith(".zip"):
             result["type"] = "Imatges"
             try:
-                with zipfile.ZipFile(backup_path, "r") as zf:
+                with zipfile.ZipFile(path, "r") as zf:
                     _ = zf.namelist()
                 result["valid"] = True
             except zipfile.BadZipFile as e:
@@ -339,7 +354,7 @@ class BackupManager:
                 result["type"] = "Notes"
             conn = None
             try:
-                conn = sqlite3.connect(str(backup_path))
+                conn = sqlite3.connect(str(path))
                 cur = conn.cursor()
                 cur.execute("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1")
                 _ = cur.fetchone()
@@ -359,14 +374,15 @@ class BackupManager:
         return result
 
     @staticmethod
-    def verify_backups_in_folder(folder_path: Path) -> list[dict[str, Any]]:
+    def verify_backups_in_folder(folder_path: Path | str) -> list[BackupInfo]:
         """Verifies all backups in a folder."""
-        if not folder_path.exists() or not folder_path.is_dir():
-            logger.error(f"Invalid folder: {folder_path}")
+        folder = Path(folder_path)
+        if not folder.exists() or not folder.is_dir():
+            logger.error(f"Invalid folder: {folder}")
             return []
         try:
-            backups: list[dict[str, Any]] = []
-            for file_path in folder_path.iterdir():
+            backups: list[BackupInfo] = []
+            for file_path in folder.iterdir():
                 if not file_path.is_file():
                     continue
                 fname = file_path.name
@@ -422,12 +438,12 @@ class BackupManager:
                 bk["error"] = vf.get("error")
             return backups
         except Exception as e:
-            logger.error(f"Error verifying backups in {folder_path}: {e}")
+            logger.error(f"Error verifying backups in {folder}: {e}")
             return []
 
     @staticmethod
     def cleanup_old_backups(
-        backup_type: str = "all", dry_run: bool = False
+        backup_type: BackupType = "all", dry_run: bool = False
     ) -> tuple[int, list[str]]:
         """
         Deletes old backups, keeping only the BACKUP_COUNT most recent of each type.
@@ -447,13 +463,13 @@ class BackupManager:
             backups = [b for b in backups if b["backup_type"] == backup_type]
 
         # Group by database type (Notes, Tramitació, Imatges)
-        backups_by_db_type: dict[str, list[dict[str, Any]]] = {}
+        backups_by_db_type: dict[str, list[BackupInfo]] = {}
         for backup in backups:
-            dbtype = backup["db_type"]
+            dbtype = str(backup["db_type"])
             backups_by_db_type.setdefault(dbtype, []).append(backup)
 
         deleted_count = 0
-        deleted_files = []
+        deleted_files: list[str] = []
 
         for dbtype, dbtype_backups in backups_by_db_type.items():
             # Sort by timestamp descending (most recent first)

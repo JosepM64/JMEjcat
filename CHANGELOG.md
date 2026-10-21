@@ -1,5 +1,55 @@
 # Changelog - JMEJCat
 
+## v4.3 (2026-10-21)
+
+### Fix: el diàleg d'edició de tràmit no bloqueja la resta de finestres
+- Bug: en editar un tràmit (número, any, data, info) el diàleg era modal i bloquejava totes les finestres (notes, tramitació, altres mòduls).
+- `TramitacioEditDialog` és ara NO modal (`setModal(False)` + `NonModal`) i s'obre amb `show()` en lloc d'`exec()`.
+- Senyal nou `dialog_closed` (s'emet una sola vegada, en acceptar, rebutjar o tancar amb la X) → `TramitacioWindow` actualitza la taula.
+- Els diàlegs fills (avís, validacions, duplicats) són modals només respecte al diàleg d'edició (`WindowModal`), no respecte a tota l'app.
+- Auto-guardat en tancar amb la X (ja existent) però les dades invàlides **no** tanquen el diàleg: es mostren els errors i el formulari es queda obert.
+- Si el mateix tràmit ja té un diàleg obert, es porta al davant en lloc d'obrir-ne un altre.
+- 6 tests nous (`tests/test_tramitacio_nonmodal.py`): no modal, sense finestra modal activa, tancament amb auto-guardat, dades invàlides, reutilització del diàleg.
+
+---
+
+## v4.2 (2026-10-08)
+
+### Fix: editor expandit de Solució lligat a la nota d'origen
+- Bug: amb l'expandit obert es podia obrir una altra nota i en desar se sobreescrivia la nova (el diàleg no recordava de quina nota era i `on_note_selected` només avisava si `isModified()`).
+- `expand_solution_editor` captura `_expanded_note_id` + `_expanded_original_html`; sense nota oberta no s'obre.
+- `_save_expanded_editor` desa només el camp solució a la nota d'origen (resta de camps des de la BD); si la principal mostra una altra nota, avisa on ha desat.
+- `on_note_selected`/`new_note`/`_close_expanded_if_open`: comparen amb l'origen (no `isModified`), desen a l'origen si cal i tanquen el diàleg abans de canviar.
+- `save_note` sincronitza l'expandit si és de la nota actual; `autosave` només el té en compte en aquest cas.
+- Ajuda → Quant a: entrada v4.2.
+
+---
+
+## v4.1 (2026-10-06)
+
+### Doble caixa de cerca (títol + text, independents)
+- Segona `QLineEdit` sota la de títol (`ui_window.py`): "Cerca per títol..." (només `title`) i "Cerca dins el text..." (`request`+`solution`).
+- Caixes independents: en escriure a una es buida l'altra (mana l'última tocada); debounce 300 ms compartit; `Ctrl+F` segueix anant a la de títol.
+- Test `test_search_title_vs_body_split`; suite **80 passed**, ruff/mypy nets.
+
+---
+
+## v4.0 (2026-09-28)
+
+### Cerca unificada + BackupManager strict + Tests integració + Ajuda
+- `core/search.py` nou: `escape_like`/`like_param` compartit; `database.search_notes(query, fields, limit, offset)` multi-camp (`SEARCH_FIELDS=["title","request","solution"]`); `tramitacio_database.search_tramits(..., limit, offset)`.
+- `backup_manager.py` tipat estricte (`BackupType`, `BackupInfo`, `Path|str` a restore/verify, `get_backup_list()->list[BackupInfo]`, filtre `db_name`); mogut al grup mypy strict + coverage.
+- Tests nous (79 total): `test_backup_restore.py` (roundtrip, corrupt→False, cleanup), `test_search_unified.py` (multi-camp, paginació, escape), `test_export.py` (MD all-in-one/separat). Fix aïllament from-imports via `_patch_bm_paths`.
+- Ajuda → Quant a: cerca multi-camp + novetats v4.0.
+- Nota: empaquetat `src/jmejcat/` ajornat a v4.1 (requereix migrar build.bat/spec/CI/query.js amb shims; ara trencaria el build).
+
+### Verificació
+- `pytest -q` → **79 passed**
+- `ruff check .` → **All checks passed**
+- `mypy .` → **Success: no issues found in 44 source files**
+
+---
+
 ## v3.62 (2026-09-07)
 
 ### Sprint 2 — P1: CI + Paginació + UX + Backups + Integritat (2.3-2.10)

@@ -6,6 +6,7 @@ Gestió de tràmits amb grid, ordenació, cerca i colors
 import csv
 import logging
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QAction
@@ -51,11 +52,18 @@ class TramitacioWindow(QDialog):
         self.current_sort_order = Qt.SortOrder.DescendingOrder
         self.pdf_exporter = None
         self.progress_dialog = None
+        # Diàlegs d'edició oberts (v4.3: no modals, en paral·lel)
+        self._edit_dialogs: list[TramitacioEditDialog] = []
+        self._closing = False
         self.setup_ui()
         self.load_data()
 
     def closeEvent(self, event):
-        """Tanca la connexió BD si la finestra la posseeix."""
+        """Tanca els diàlegs d'edició oberts i la connexió BD si la finestra la posseeix."""
+        self._closing = True
+        for dialog in list(self._edit_dialogs):
+            dialog.close()  # auto-guarda si hi ha dades
+        self._edit_dialogs.clear()
         if getattr(self, "_owns_db", False) and hasattr(self, "db"):
             self.db.close()
         super().closeEvent(event)
@@ -242,26 +250,56 @@ class TramitacioWindow(QDialog):
             logger.error(f"Error carregant dades: {e}")
             QMessageBox.critical(self, "Error", f"Error carregant dades: {e}")
 
+    def _open_edit_dialog(
+        self,
+        tramit: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Obre el diàleg d'edició de tràmit en mode NO modal.
+
+        v4.3: el diàleg no bloqueja la resta de finestres de l'aplicació
+        (notes, altres finestres de tramitació...). Es torna al davant si
+        el mateix tràmit ja té un diàleg obert.
+        """
+        tramit_id = tramit.get("id") if tramit else None
+        if tramit_id is not None:
+            for dialog in self._edit_dialogs:
+                if dialog.tramit.get("id") == tramit_id:
+                    dialog.raise_()
+                    dialog.activateWindow()
+                    return
+
+        dialog = TramitacioEditDialog(self, tramit, db=self.db, **kwargs)
+        dialog.setModal(False)
+        dialog.setWindowModality(Qt.WindowModality.NonModal)
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
+        self._edit_dialogs.append(dialog)
+        dialog.dialog_closed.connect(
+            lambda d=dialog: self._on_edit_dialog_closed(d)
+        )
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def _on_edit_dialog_closed(self, dialog: TramitacioEditDialog) -> None:
+        """Actualitza la taula quan el diàleg d'edició es tanca."""
+        if dialog in self._edit_dialogs:
+            self._edit_dialogs.remove(dialog)
+        # Surt de la jerarquia del pare i es destrueix de forma diferida
+        # (evita que el diàlg es destrueixi dues vegades).
+        dialog.setParent(None)
+        dialog.deleteLater()
+        if self._closing:
+            return
+        self.load_data()
+        self.sort_data()
+
     def open_tramit_by_id(self, tramit_id: int):
-        """Obre el diàleg d'edició per a un tràmit especific per ID."""
+        """Obre el diàleg d'edició (no modal) per a un tràmit especific per ID."""
         try:
             tramit = self.db.get_tramit(tramit_id)
             if tramit:
-                dialog = TramitacioEditDialog(self, tramit, db=self.db)
-                if dialog.exec():
-                    self.load_data()  # Actualitzar la llista si s'han fet canvis
-                    # Aplicar color de fons si hi ha color
-                    tramit_color = tramit.get("color", "")
-                    if tramit_color and tramit_color in TRAMIT_COLORS:
-                        color = TRAMIT_COLORS[tramit_color][1]
-                        # Trobar la fila del tràmit actualitzat per aplicar el color
-                        for row in range(self.table.rowCount()):
-                            if int(self.table.item(row, 1).text()) == tramit_id:
-                                for col in range(1, 6):
-                                    item = self.table.item(row, col)
-                                    if item:
-                                        item.setBackground(color)
-                                break
+                self._open_edit_dialog(tramit)
             self.sort_data()
         except Exception as e:
             logger.error(f"Error carregant dades: {e}")
@@ -372,16 +410,12 @@ class TramitacioWindow(QDialog):
             QMessageBox.critical(self, "Error", f"Error canviant color: {e}")
 
     def on_nou_clicked(self):
-        """Obre el diàleg per crear un nou tràmit.
+        """Obre el diàleg per crear un nou tràmit (no modal).
         Si hi ha valors al cercador, els utilitza com a valors inicials."""
         # Obtenir valors del cercador
         numero = self.search_numero.text().strip()
         any_text = self.search_any.text().strip()
-        dialog = TramitacioEditDialog(
-            self, initial_numero=numero, initial_any=any_text, db=self.db
-        )
-        if dialog.exec():
-            self.load_data()
+        self._open_edit_dialog(None, initial_numero=numero, initial_any=any_text)
 
     def _get_tramit_id(self, row: int) -> int | None:
         try:
@@ -402,9 +436,7 @@ class TramitacioWindow(QDialog):
             return
         tramit = self.db.get_tramit(tramit_id)
         if tramit:
-            dialog = TramitacioEditDialog(self, tramit, db=self.db)
-            if dialog.exec():
-                self.load_data()
+            self._open_edit_dialog(tramit)
 
     def on_cell_double_clicked(self, row: int, column: int):
         """Obre el diàleg per editar quan es fa doble clic a una cel·la."""
@@ -415,9 +447,7 @@ class TramitacioWindow(QDialog):
             return
         tramit = self.db.get_tramit(tramit_id)
         if tramit:
-            dialog = TramitacioEditDialog(self, tramit, db=self.db)
-            if dialog.exec():
-                self.load_data()
+            self._open_edit_dialog(tramit)
 
     def on_eliminar_clicked(self):
         """Elimina el tràmit seleccionat."""

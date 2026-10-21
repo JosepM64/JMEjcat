@@ -10,7 +10,7 @@
 # es distribueix com a executable via PyInstaller. La secció [project] és
 # només perquè ruff/mypy tinguin metadades per a la resolució de tipus.
 name = "JMEJCat"
-version = "3.62"
+version = "4.3"
 description = "Gestió d'apunts i control d'expedients — tramitador jutjat civil"
 requires-python = ">=3.13"
 
@@ -98,8 +98,10 @@ disable_error_code = ["attr-defined"]
 module = [
     "core.base_database",
     "core.tramit_colors",
+    "core.search",
     "database",
     "tramitacio_database",
+    "backup_manager",
     "utils",
 ]
 disallow_untyped_defs = true
@@ -116,7 +118,6 @@ module = [
     "image_gallery",
     "pdf_exporter",
     "md_exporter",
-    "backup_manager",
     "tramitacio_window",
     "tramitacio_alarms",
     "ui.tramitacio_edit_dialog",
@@ -160,6 +161,8 @@ source = [
     "tramitacio_database",
     "core.base_database",
     "core.tramit_colors",
+    "core.search",
+    "backup_manager",
     "config",
     "utils",
 ]

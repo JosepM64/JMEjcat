@@ -12,7 +12,7 @@ import os
 import sys
 
 PROJECT_NAME = "JMEJCat"
-PROJECT_VERSION = "3.62"
+PROJECT_VERSION = "4.3"
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = SCRIPT_DIR

@@ -166,9 +166,14 @@ class MainWindow(
         left_layout.addWidget(search_label)
 
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Escriu per cercar...")
+        self.search_input.setPlaceholderText("Cerca per títol...")
         self.search_input.textChanged.connect(self.on_search)
         left_layout.addWidget(self.search_input)
+
+        self.search_text_input = QLineEdit()
+        self.search_text_input.setPlaceholderText("Cerca dins el text...")
+        self.search_text_input.textChanged.connect(self.on_search_text)
+        left_layout.addWidget(self.search_text_input)
 
         # Lista de notas
         notes_label = QLabel("Notes:")
@@ -398,7 +403,7 @@ class MainWindow(
             <li>Format de text enriquit (negreta, cursiva, subratllat)</li>
             <li>Tramitació d'expedients: número, any, colors, recordatoris i alarmes</li>
             <li>Gestió d'imatges amb miniatures i visor amb zoom</li>
-            <li>Cerca instantània</li>
+            <li>Cerca instantània per títol i per text (dues caixes)</li>
             <li>Exportació a PDF, Markdown i CSV</li>
             <li>Calculadora de despeses i diferència de pagaments</li>
             <li>Sistema de backups automàtics</li>
@@ -423,6 +428,28 @@ class MainWindow(
         </ul>
 
         <p>Llicència: LGPL v3</p>
+
+        <h3>Novetats v4.3:</h3>
+        <ul>
+            <li>El diàleg d'edició de tràmit ja no bloqueja la resta de finestres</li>
+        </ul>
+
+        <h3>Novetats v4.2:</h3>
+        <ul>
+            <li>L'editor ampliat de Solució desa sempre a la seva nota d'origen</li>
+        </ul>
+
+        <h3>Novetats v4.1:</h3>
+        <ul>
+            <li>Dues caixes de cerca: per títol i dins el text (mana l'última tocada)</li>
+        </ul>
+
+        <h3>Novetats v4.0:</h3>
+        <ul>
+            <li>Cerca unificada: títol + petició + solució, amb paginació</li>
+            <li>Backups tipats i verificats (restore segur, neteja per tipus)</li>
+            <li>Tests d'integració: restore, export MD, cerca</li>
+        </ul>
         """
 
         QMessageBox.about(self, f"Quant a {APP_NAME}", about_text)

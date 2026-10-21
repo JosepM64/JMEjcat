@@ -281,8 +281,12 @@ class TramitacioDatabase(BaseDatabase):
         any: int | None = None,
         color_filter: str | None = None,
         data: str | None = None,
+        limit: int | None = None,
+        offset: int | None = 0,
     ) -> list[dict[str, Any]]:
-        """Cerca tramitacions per número i/o any i/o color i/o data."""
+        """Cerca tramitacions per número i/o any i/o color i/o data (v4.0: unificat)."""
+        from core.search import like_param
+
         with self._get_connection() as conn:
             cursor = conn.cursor()
 
@@ -291,13 +295,7 @@ class TramitacioDatabase(BaseDatabase):
 
             if numero:
                 query += " AND numero LIKE ? ESCAPE '\\'"
-                # Escapar %, _ i \\ perquè es busquin literalment
-                escaped = (
-                    numero.replace("\\", "\\\\")
-                    .replace("%", "\\%")
-                    .replace("_", "\\_")
-                )
-                params.append(f"%{escaped}%")
+                params.append(like_param(numero))
 
             if any is not None:
                 query += " AND any = ?"
@@ -312,6 +310,15 @@ class TramitacioDatabase(BaseDatabase):
                 params.append(data)
 
             query += " ORDER BY data DESC"
+            if limit is not None:
+                query += " LIMIT ?"
+                params.append(limit)
+                if offset:
+                    query += " OFFSET ?"
+                    params.append(offset)
+            elif offset:
+                query += " LIMIT -1 OFFSET ?"
+                params.append(offset)
 
             cursor.execute(query, params)
             return [dict(row) for row in cursor.fetchall()]

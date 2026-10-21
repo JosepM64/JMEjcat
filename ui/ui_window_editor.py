@@ -45,16 +45,26 @@ class UiWindowEditorMixin:
             bool: True si s'ha tancat (o estava tancat), False si l'usuari ha cancel·lat.
         """
         if not hasattr(self, "expand_dialog") or self.expand_dialog is None:
+            self._expanded_note_id = None
             return True
 
         if not self.expand_dialog.isVisible():
             self.expand_dialog.deleteLater()
             self.expand_dialog = None
+            self._expanded_note_id = None
             return True
 
-        # Verificar si hi ha canvis pendents
+        # Verificar si hi ha canvis pendents (vs origen del diàleg, fix v4.2)
         editor = self.expand_dialog.findChild(QTextEdit)
-        if editor and editor.document().isModified():
+        original = getattr(self, "_expanded_original_html", None)
+        dirty = bool(
+            editor
+            and (
+                (original is not None and editor.toHtml() != original)
+                or editor.document().isModified()
+            )
+        )
+        if dirty:
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle("Canvis pendents")
             msg_box.setText("L'editor ampliat té canvis pendents. Vols desar-los?")
@@ -80,10 +90,16 @@ class UiWindowEditorMixin:
         self.expand_dialog.close()
         self.expand_dialog.deleteLater()
         self.expand_dialog = None
+        self._expanded_note_id = None
         return True
 
     def expand_solution_editor(self):
-        """Amplía el editor de Solució en un diálogo modal (solo una ventana)."""
+        """Amplía el editor de Solució en un diálogo (solo una ventana).
+
+        El diàleg queda lligat a la nota d'origen (_expanded_note_id):
+        desar-hi escriu sempre aquella nota, encara que la principal
+        hagi canviat de nota mentrestant (bug v4.1: sobreescrivia la nova).
+        """
         if hasattr(self, "expand_dialog") and self.expand_dialog is not None:
             if self.expand_dialog.isVisible():
                 self.expand_dialog.raise_()
@@ -93,8 +109,16 @@ class UiWindowEditorMixin:
                 self.expand_dialog.deleteLater()
                 self.expand_dialog = None
 
+        if self.current_note_id is None:
+            from PySide6.QtWidgets import QMessageBox as _MB
+
+            _MB.warning(self, "Avís", "Obre o crea una nota abans d'ampliar la Solució.")
+            return
+
         dialog = QDialog(self)
         self.expand_dialog = dialog
+        # Lligar el diàleg a la nota d'origen (fix v4.2)
+        self._expanded_note_id = self.current_note_id
         title = self.title_input.text().strip() or "Sense titol"
         dialog.setWindowTitle(f"Editar Solució - {title}")
         dialog.setMinimumSize(800, 600)
@@ -104,6 +128,7 @@ class UiWindowEditorMixin:
 
         editor = QTextEdit()
         editor.setHtml(self.solution_edit.toHtml())
+        self._expanded_original_html = editor.toHtml()
         editor.setStyleSheet(
             "background-color: white; border: 1px solid #ccc; padding: 10px;"
         )
@@ -333,7 +358,11 @@ class UiWindowEditorMixin:
         undo_shortcut.activated.connect(editor.undo)
 
         def try_close():
-            original_html = self.solution_edit.toHtml()
+            # Comparar amb l'html d'origen del diàleg (fix v4.2: la principal
+            # pot mostrar una altra nota i solution_edit ja no és referència).
+            original_html = getattr(
+                self, "_expanded_original_html", self.solution_edit.toHtml()
+            )
             current_html = editor.toHtml()
 
             if original_html != current_html:
@@ -352,14 +381,17 @@ class UiWindowEditorMixin:
                     self._save_expanded_editor(editor, None)
                     dialog.close()
                     self.expand_dialog = None
+                    self._expanded_note_id = None
                     return
                 elif reply == QMessageBox.Discard:
                     dialog.close()
                     self.expand_dialog = None
+                    self._expanded_note_id = None
                     return
             else:
                 dialog.close()
                 self.expand_dialog = None
+                self._expanded_note_id = None
                 return
 
         dialog.finished.connect(try_close)
@@ -372,31 +404,46 @@ class UiWindowEditorMixin:
         dialog.show()
 
     def _save_expanded_editor(self, editor, save_btn, close_after_save: bool = False):
-        """Guarda el contenido del editor ampliado.
+        """Guarda el contingut de l'editor ampliat a la seva nota d'origen.
+
+        Fix v4.2: el diàleg està lligat a _expanded_note_id i només toca el
+        camp solució (la resta es llegeix de la BD). Així, encara que la
+        finestra principal hagi canviat de nota, mai sobreescriu la nova.
 
         Args:
             editor: El QTextEdit del editor
             save_btn: El botón de guardar (puede ser None)
             close_after_save: Si True, cierra el diálogo después de guardar
         """
-        if self.current_note_id is None:
+        target_id = getattr(self, "_expanded_note_id", None) or self.current_note_id
+        if target_id is None:
             self.statusBar().showMessage("No hi ha cap nota seleccionada", 2000)
             return
 
         solution = editor.toHtml()
-        self.solution_edit.setHtml(solution)
-
-        title = self.title_input.text()
-        request = self.request_edit.toHtml()
-        examples_text = self.examples_edit.text()
+        origin = self.db.get_note(target_id)
+        if origin is None:
+            QMessageBox.warning(self, "Error", "La nota d'origen ja no existeix.")
+            return
 
         success = self.db.update_note(
-            self.current_note_id, title, request, solution, examples_text
+            target_id,
+            origin["title"],
+            origin["request"] or "",
+            solution,
+            origin["examples"] or "",
         )
 
         if success:
-            self.current_note_modified = False
-            self.statusBar().showMessage("Canvis desats", 2000)
+            self._expanded_original_html = solution
+            if self.current_note_id == target_id:
+                self.solution_edit.setHtml(solution)
+                self.current_note_modified = False
+                self.statusBar().showMessage("Canvis desats", 2000)
+            else:
+                self.statusBar().showMessage(
+                    f"Desat a la nota d'origen: {origin['title']}", 3000
+                )
             self.load_notes()
 
             # Actualizar indicador de la pantalla principal
@@ -456,6 +503,7 @@ class UiWindowEditorMixin:
             self.expand_dialog.close()
             self.expand_dialog.deleteLater()
             self.expand_dialog = None
+        self._expanded_note_id = None
 
         # Carregar la nota pendent si n'hi ha
         if (
@@ -468,7 +516,10 @@ class UiWindowEditorMixin:
 
     def _close_expanded_editor(self, dialog, editor):
         """Tanca l'editor ampliat, preguntant si desar canvis si n'hi ha."""
-        original_html = self.solution_edit.toHtml()
+        # Fix v4.2: comparar amb l'origen del diàleg, no amb la principal.
+        original_html = getattr(
+            self, "_expanded_original_html", self.solution_edit.toHtml()
+        )
         current_html = editor.toHtml()
 
         if original_html != current_html:
@@ -486,14 +537,17 @@ class UiWindowEditorMixin:
             if reply == QMessageBox.Save:
                 self._save_expanded_editor(editor, None)
                 dialog.accept()
+                self._expanded_note_id = None
                 return
             elif reply == QMessageBox.Discard:
                 dialog.reject()
+                self._expanded_note_id = None
                 return
             else:
                 return
 
         dialog.reject()
+        self._expanded_note_id = None
 
     def _insert_bullet_list(self, editor):
         cursor = editor.textCursor()
