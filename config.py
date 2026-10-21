@@ -11,7 +11,7 @@ from pathlib import Path
 # ============================================================================
 
 APP_NAME = "JMEJCat"
-APP_VERSION = "4.3"
+APP_VERSION = "4.4"
 APP_AUTHOR = "Josep Maria Tapia Estaragues"
 APP_WEBSITE = "https://www.posicionamientowebysem.com/"
 APP_LICENSE = "LGPL v3"

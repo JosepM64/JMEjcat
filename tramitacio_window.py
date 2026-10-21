@@ -395,7 +395,7 @@ class TramitacioWindow(QDialog):
             if color_key:
                 action = QAction(color_name, self)
                 action.triggered.connect(
-                    lambda checked, ck=color_key: self.set_row_color(tramit_id, ck)
+                    lambda _checked, ck=color_key: self.set_row_color(tramit_id, ck)
                 )
                 menu.addAction(action)
         menu.exec(self.table.viewport().mapToGlobal(pos))
@@ -538,7 +538,7 @@ class TramitacioWindow(QDialog):
             logger.error(f"Error exportant PDF: {e}")
             QMessageBox.critical(self, "Error", f"Error exportant: {e}")
 
-    def _on_pdf_export_finished(self, success: bool, message: str, pdf_path: str = ""):
+    def _on_pdf_export_finished(self, success: bool, message: str, _pdf_path: str = ""):
         """Callback cuando la exportación PDF termina"""
         if hasattr(self, "progress_dialog") and self.progress_dialog:
             self.progress_dialog.close()

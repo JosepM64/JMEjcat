@@ -19,7 +19,7 @@ class _HTMLToMarkdown(HTMLParser):
         self._italic = 0
         self._skip_depth = 0  # per saltar html/head/body
 
-    def handle_starttag(self, tag, attrs):
+    def handle_starttag(self, tag, _attrs):
         if tag in ("html", "head", "body", "meta", "link", "style"):
             self._skip_depth += 1
             return

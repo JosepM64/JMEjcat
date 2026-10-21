@@ -66,11 +66,11 @@ class UiWindowTramitacioMixin:
                     continue
 
                 if now >= reminder_dt:
-                    self._show_reminder_dialog(tramit, now)
+                    self._show_reminder_dialog(tramit)
         except Exception as e:
             logger.error(f"Error en check_tramit_reminders: {e}")
 
-    def _show_reminder_dialog(self, tramit, now):
+    def _show_reminder_dialog(self, tramit):
         """Mostra diàleg d'avís amb opcions d'ajornament."""
         from datetime import datetime, timedelta
 

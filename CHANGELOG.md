@@ -1,5 +1,21 @@
 # Changelog - JMEJCat
 
+## v4.4 (2026-10-22)
+
+### Neteja de codi orfe
+- Esborrats els mètodes/potències definits però mai cridats: `image_manager._generate_file_hash`, `utils.format_file_size`, `utils.get_resource_path`, `ui_window_notes.on_note_link_clicked` (duplicat de `_handle_link_click`).
+- Esborrats els scripts de diagnòstic obsolets amb rutes hardcodejades: `analyze_db.py`, `analyze_tramitacio_bug.py`, `checks/` (check_null_ids, check_1435, fix_null_ids).
+- Paràmetres morts eliminats: `now` a `_show_reminder_dialog`, `pdf_path` a `TramitacioWindow._on_pdf_export_finished`, `attrs` a `md_exporter.handle_starttag`; lambdes amb argument no utilitzat (`e`, `checked`).
+
+### Fix: el pintor de format fa el que el tooltip anuncia
+- Bug: el tooltip "🖌️ clic = 1 uso, doble clic = múltiples" no es complia: el doble clic no estava connectat i `multi_apply` era sempre `False`.
+- Nou `_FormatPainterButton` (emissor de `doubleClicked`) connectat a `_handle_fp_double_click`: el doble clic copia el format i activa el mode multi-aplicació (ESC per sortir).
+- `_apply_copied_format` centralitza l'aplicació del format (mode normal consumeix el format; mode multi el conserva).
+- `force_close` de `_close_expanded_if_open` ja fa el que diu: desa i tanca sense preguntar.
+- Tests nous: `tests/test_format_painter.py` (6 tests).
+
+---
+
 ## v4.3 (2026-10-21)
 
 ### Fix: el diàleg d'edició de tràmit no bloqueja la resta de finestres

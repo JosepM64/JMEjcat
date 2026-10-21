@@ -139,7 +139,7 @@ class MainWindow(
         author_label = QLabel(f" {APP_AUTHOR} | v{APP_VERSION} ")
         author_label.setStyleSheet("color: #666; font-size: 10px;")
         author_label.setCursor(Qt.PointingHandCursor)
-        author_label.mousePressEvent = lambda e: self.open_website()
+        author_label.mousePressEvent = lambda _e: self.open_website()
         self.statusBar().addPermanentWidget(author_label)
 
         logger.info("Finestra principal inicialitzada")
@@ -428,6 +428,12 @@ class MainWindow(
         </ul>
 
         <p>Llicència: LGPL v3</p>
+
+        <h3>Novetats v4.4:</h3>
+        <ul>
+            <li>El pintor de format admet doble clic per reutilitzar un format</li>
+            <li>Neteja de codi obsolet</li>
+        </ul>
 
         <h3>Novetats v4.3:</h3>
         <ul>

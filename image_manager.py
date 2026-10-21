@@ -55,17 +55,6 @@ class ImageManager:
         logger.info(f"Directorio de imágenes: {self.original_dir}")
         logger.info(f"Directorio de thumbnails: {self.thumbs_dir}")
 
-    @staticmethod
-    def _generate_file_hash(source_path: Path, length: int = IMAGE_HASH_LENGTH) -> str:
-        """Genera un hash del contenido del archivo.
-
-        El hash se basa únicamente en el contenido: si se añade la misma
-        imagen dos veces, se reutiliza el mismo nombre (deduplicación).
-        Si hay colisión de nombre con contenido distinto, process_image
-        añade un sufijo numérico.
-        """
-        return hashlib.sha256(source_path.read_bytes()).hexdigest()[:length]
-
     def _resolve_unique_name(self, file_hash: str, ext: str, content: bytes) -> tuple[str, Path]:
         """Devuelve un (filename, path) único para el contenido.
 

@@ -2,7 +2,7 @@
 
 import logging
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import (
     QFont,
     QKeySequence,
@@ -28,6 +28,20 @@ from PySide6.QtWidgets import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class _FormatPainterButton(QPushButton):
+    """Botó del pintor de format.
+
+    A més del clic simple, emet `doubleClicked` per activar el mode
+    multi-aplicació (copiar un format i reutilitzar-lo varies vegades).
+    """
+
+    doubleClicked = Signal()
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        self.doubleClicked.emit()
+        event.accept()
 
 
 class UiWindowEditorMixin:
@@ -64,7 +78,7 @@ class UiWindowEditorMixin:
                 or editor.document().isModified()
             )
         )
-        if dirty:
+        if dirty and not force_close:
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle("Canvis pendents")
             msg_box.setText("L'editor ampliat té canvis pendents. Vols desar-los?")
@@ -85,6 +99,9 @@ class UiWindowEditorMixin:
 
             if reply == QMessageBox.StandardButton.Yes:
                 self._save_expanded_editor(editor, None)
+        elif dirty and force_close:
+            # Tancament forçat: es desa sense preguntar (no es perden canvis)
+            self._save_expanded_editor(editor, None)
 
         # Tancar el diàleg
         self.expand_dialog.close()
@@ -218,9 +235,9 @@ class UiWindowEditorMixin:
         paste_plain_btn.setToolTip("Enganxar text pla (Ctrl+Shift+V)")
         paste_plain_btn.clicked.connect(lambda: self._paste_plain_text(editor))
 
-        format_painter_btn = QPushButton("🖌️")
+        format_painter_btn = _FormatPainterButton("🖌️")
         format_painter_btn.setFixedSize(35, 28)
-        format_painter_btn.setToolTip("Copiar format")
+        format_painter_btn.setToolTip("Copiar format (clic = 1 ús, doble clic = múltiples)")
         self.format_painter_btn = format_painter_btn
 
         def on_fp_clicked():
@@ -228,30 +245,29 @@ class UiWindowEditorMixin:
                 cursor = editor.textCursor()
                 if cursor.hasSelection():
                     if self.copied_format[0] is None:
+                        # Copiar el format del text seleccionat
                         self.copied_format[0] = cursor.charFormat()
                         format_painter_btn.setStyleSheet("background-color: #90EE90;")
                         format_painter_btn.setToolTip("Aplicar format (clica aqui)")
                     else:
-                        cursor.setCharFormat(self.copied_format[0])
-                        format_painter_btn.setStyleSheet("")
-                        self.copied_format[0] = None
-                        format_painter_btn.setToolTip("Copiar format")
+                        # Aplicar el format copiat
+                        self._apply_copied_format(editor, format_painter_btn)
                 else:
-                    self.copied_format[0] = None
-                    format_painter_btn.setStyleSheet("")
+                    self._reset_format_painter(format_painter_btn)
                     format_painter_btn.setToolTip("Selecciona text amb format")
             except Exception as e:
                 logger.warning(f"FP error: {e}")
 
         format_painter_btn.clicked.connect(on_fp_clicked)
+        # Doble clic = mode multi-aplicació (v4.4)
+        format_painter_btn.doubleClicked.connect(
+            lambda: self._handle_fp_double_click(format_painter_btn, editor)
+        )
 
         fp_shortcut = QShortcut(QKeySequence("Esc"), editor)
         fp_shortcut.setContext(Qt.ShortcutContext.WidgetShortcut)
         fp_shortcut.activated.connect(
-            lambda: (
-                setattr(self, "copied_format", [None]),
-                format_painter_btn.setStyleSheet(""),
-            )
+            lambda: self._reset_format_painter(format_painter_btn)
         )
 
         case_btn = QPushButton("Aa")
@@ -607,27 +623,43 @@ class UiWindowEditorMixin:
                     "Copiar format (🖌️ clic = 1 uso, doble clic = múltiples)"
                 )
 
-    def _handle_fp_double_click(self, event, editor, format_painter_btn):
-        """Handle double click per multi-apply mode."""
-        if event.button() == Qt.MouseButton.LeftButton:
-            cursor = editor.textCursor()
-            if cursor.hasSelection():
-                self.copied_format[0] = cursor.charFormat()
-                self.multi_apply[0] = True
-                format_painter_btn.setStyleSheet("background-color: #90EE90;")
-                format_painter_btn.setToolTip(
-                    "Mode múltiples! Clica per aplicar, ESC per sortir"
-                )
-                event.accept()
+    def _handle_fp_double_click(self, format_painter_btn, editor):
+        """Activa el mode multi-aplicació del pintor de format (doble clic).
 
-    def _apply_copied_format(self, editor):
-        """Aplica el format copiat al text seleccionat."""
-        if self.copied_format[0] is not None:
+        Copia el format del text seleccionat i el manté actiu per aplicar-lo
+        a diverses seleccions seguides (ESC per sortir del mode).
+        """
+        if self.copied_format[0] is None:
             cursor = editor.textCursor()
-            if cursor.hasSelection():
-                cursor.setCharFormat(self.copied_format[0])
-                if not self.multi_apply[0]:
-                    self._reset_format_painter(self.format_painter_btn)
+            if not cursor.hasSelection():
+                return
+            self.copied_format[0] = cursor.charFormat()
+
+        self.multi_apply[0] = True
+        format_painter_btn.setStyleSheet("background-color: #90EE90;")
+        format_painter_btn.setToolTip(
+            "Mode múltiples! Clica per aplicar, ESC per sortir"
+        )
+
+    def _apply_copied_format(self, editor, format_painter_btn=None):
+        """Aplica el format copiat al text seleccionat.
+
+        En mode multi-aplicació el format es conserva per reutilitzar-lo;
+        en mode normal es consumeix (un sol ús).
+        """
+        if self.copied_format[0] is None:
+            return
+
+        cursor = editor.textCursor()
+        if not cursor.hasSelection():
+            return
+
+        cursor.setCharFormat(self.copied_format[0])
+        if not self.multi_apply[0]:
+            self._reset_format_painter(
+                format_painter_btn if format_painter_btn is not None
+                else self.format_painter_btn
+            )
 
     def _set_line_spacing(self, editor, spacing):
         """Canvia l'interlineat del text per als blocs seleccionats o tot el document."""

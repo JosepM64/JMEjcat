@@ -102,22 +102,6 @@ class UiWindowNotesMixin:
                         return True
         return False
 
-    def on_note_link_clicked(self, url):
-        """Navega a la nota enllaçada quan es fa clic a l'enllaç."""
-        url_str = url.toString()
-
-        if url_str.startswith("note:"):
-            note_id = url_str[5:]
-
-            try:
-                note_id = int(note_id)
-            except ValueError:
-                return
-
-            note = self.db.get_note(note_id)
-            if note:
-                self.load_note_by_id(note_id)
-
     def load_note_by_id(self, note_id):
         """Carrega una nota pel seu ID."""
         self._loading_note = True

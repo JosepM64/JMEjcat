@@ -156,24 +156,6 @@ def validate_date_ddmmyyyy(date_str: str) -> bool:
         return False
 
 
-def format_file_size(bytes_size: int) -> str:
-    """
-    Formatea un tamaño de archivo en bytes a una representación legible.
-
-    Args:
-        bytes_size: Tamaño en bytes.
-
-    Returns:
-        str: Tamaño formateado (ej. "1.5 MB").
-    """
-    size = float(bytes_size)
-    for unit in ("B", "KB", "MB", "GB"):
-        if size < 1024.0 or unit == "GB":
-            return f"{size:.1f} {unit}"
-        size /= 1024.0
-    return ""  # unreachable, però satisfà el tipus de retorn
-
-
 def is_portable_mode() -> bool:
     """
     Verifica si la aplicación está en modo portable.
@@ -182,23 +164,3 @@ def is_portable_mode() -> bool:
         bool: True si está en modo portable (ejecutable + data/), False en desarrollo.
     """
     return getattr(sys, "frozen", False)
-
-
-def get_resource_path(relative_path: str) -> Path:
-    """
-    Obtiene la ruta absoluta a un recurso.
-
-    Args:
-        relative_path: Ruta relativa del recurso.
-
-    Returns:
-        Path: Ruta absoluta al recurso.
-    """
-    if is_portable_mode():
-        # En modo portable, los recursos están en sys._MEIPASS
-        base_path = Path(sys._MEIPASS)
-    else:
-        # En desarrollo, en el directorio de la aplicación
-        base_path = get_app_path()
-
-    return base_path / relative_path
