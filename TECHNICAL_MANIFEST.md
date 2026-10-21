@@ -1,466 +1,474 @@
-JMEJCat - Technical Architecture Manifest
+# JMEJCat — Technical Architecture Manifest
 
-Version: 3.57
+Version: 4.4
 Status: Released
-Core Principle: Separation of Concerns, Portable, Offline-First, Optimized
+Core Principle: Separation of Concerns, Portable, Offline-First, Typed
 License: LGPL v3
-Language: English (technical-neutral vocabulary in code)
+Language: English (technical-neutral vocabulary in code), Catalan in the UI
 
-1. ARCHITECTURAL OVERVIEW
-1.1 Core Philosophy
+> This document describes the **real** structure of the codebase as of v4.4.
+> Previous revisions (v3.x) described an aspirational `src/` package layout that
+> was never adopted; the application uses a flat, module-per-concern layout at
+> the repository root plus a small `core/` and `ui/` package.
 
-    Single Responsibility: Each component handles one concern
+---
 
-    Portability: Copy data/ folder = complete application state
+## 1. ARCHITECTURAL OVERVIEW
 
-    Simplicity: Minimal dependencies: Python + PySide6 + (optional Pillow)
+### 1.1 Core Philosophy
 
-    Offline-First: SQLite + local filesystem as primary data store
+- **Single Responsibility**: each module handles one concern (DB access, UI, export, backup…).
+- **Portability**: copying the `data/` folder plus the executable = complete application state.
+- **Simplicity**: minimal dependencies — Python + PySide6 + (optional) Pillow. SQLite via the stdlib.
+- **Offline-First**: SQLite + local filesystem are the only data stores. No network calls at runtime.
+- **Type-Safety**: the data layer is fully annotated and checked by mypy.
 
-    Future-Proof: Python 3.12+ for typing stability and modern features
+### 1.2 Technology Stack (as installed)
 
-1.2 Technology Stack (Updated v3.20)
-text
+| Component | Version | Notes |
+|---|---|---|
+| Python | 3.13.x (3.13.14) | Conda env `jm_pyside_313` |
+| PySide6 | 6.11.2 | Installed via **pip** (never conda-forge — breaks PyInstaller) |
+| Pillow | 12.3.0 | Optional; used for thumbnails and image metadata |
+| SQLite3 | stdlib | Direct `sqlite3` module, **not** QtSql |
+| PyInstaller | 6.22.2 | Packaging (onedir) |
+| ruff | 0.16.9 | Linter + formatter |
+| mypy | 2.3.1 | Static type checking |
+| pytest / pytest-cov | 9.1.1 / 7.1.0 | Test suite + coverage |
 
-Python 3.13.x (CPython) - Primary runtime (optimized for performance)
-PySide6 6.11.0 (LGPL) - GUI Framework (minimal modules included)
-SQLite3 3.45+ (built-in) - Data Storage (optimized indexes)
-Pillow 12.2.0 (optional) - Advanced Image Processing
-PyInstaller 6.19.0 - Packaging (optimized configuration)
+Runtime target: **Windows 10/11 64-bit only**.
 
-Rationale for Python 3.13+:
+### 1.3 Application Vocabulary
 
-    Improved performance and reduced memory footprint
+- UI labels: **Catalan** (Títol, Petició, Solució, Exemples, Cerca per títol…).
+- Code identifiers, DB columns, file names: **English** (`title`, `request`, `solution`, `examples`).
+- Class/function names: `PascalCase` / `snake_case`; 4-space indentation, double quotes, 100-col soft limit.
 
-    Enhanced error messages and debugging capabilities
+---
 
-    Modern pathlib improvements for cross-platform file handling
+## 2. PROJECT LAYOUT
 
-    Stable Qt bindings with PySide6 6.11+ compatibility
+```text
+JMEJCat/
+├── jmejcat.py                # Entry point: logging, single-instance lock, QApplication
+├── config.py                 # All constants (APP_VERSION, paths limits, colors, search fields)
+├── utils.py                  # Path helpers (app/data/images/backups) + date validation
+├── database.py               # Database (notes + images)
+├── tramitacio_database.py    # TramitacioDatabase (court case files)
+├── backup_manager.py         # Typed backup/restore/verify/cleanup
+├── image_manager.py          # Image hashing, dedup, thumbnails
+├── image_gallery.py          # Thumbnail grid widget
+├── image_viewer.py           # Full-size image viewer (zoom)
+├── ui_window.py              # MainWindow: composes the UI mixins
+├── tramitacio_window.py      # TramitacioWindow (separate top-level window)
+├── ui_dialogs.py             # Backup manager / verify / link dialogs
+├── calculator.py             # Fee calculator for court amounts
+├── md_exporter.py            # Markdown export
+├── pdf_exporter.py           # PDF export (QtPrintSupport)
+├── tramitacio_alarms.py      # Reminder/alarm helpers
+├── core/                     # Shared, framework-free logic
+│   ├── base_database.py      # BaseDatabase: connection, schema_version, migrations
+│   ├── search.py             # escape_like / like_param / build_like_condition
+│   └── tramit_colors.py      # Colour constants for case rows
+├── ui/                       # MainWindow mixins + Tramitacio dialogs
+│   ├── ui_window_menu.py     # Menus, actions, shortcuts
+│   ├── ui_window_notes.py    # Note list, selection, save, autosave
+│   ├── ui_window_editor.py   # Rich-text editors, expanded Solution editor, format painter
+│   ├── ui_window_formatting.py # Formatting toolbar helpers
+│   ├── ui_window_images.py   # Image gallery integration
+│   ├── ui_window_export.py   # PDF / Markdown export
+│   ├── ui_window_backup.py   # Backup dialogs and periodic backups
+│   ├── ui_window_tramitacio.py # Tramitació panel inside the main window
+│   └── tramitacio_edit_dialog.py # Non-modal case edit dialog
+├── tests/                    # pytest suite (92 tests)
+├── assets/                   # icon.ico + resources (bundled in the build)
+├── build.bat                 # Windows build script (PyInstaller onedir)
+├── JMEJCat.spec              # PyInstaller configuration
+├── verify_automatica.py      # 50 self-checks (structure, imports, DB, config…)
+└── pyproject.toml            # Tooling config only (ruff / mypy / pytest / coverage)
+```
 
-    Performance improvements in pattern matching and interpreter
+**Runtime data** (never bundled in the build; created next to the executable):
 
-    Better support for type hints and generic types
+```text
+data/
+├── jmejcat.db                # Notes + images
+├── tramitacio.db             # Case files
+├── backups/                  # Timestamped DB backups + image zips
+└── images/
+    ├── original/             # {sha256_12}.{ext} (deduplicated by content hash)
+    └── thumbs/               # {sha256_12}_256.jpg
+```
 
-Optimizations Applied (v3.20):
+---
 
-    Executable size reduced by 25% (removed unused Qt modules)
+## 3. DATA LAYER
 
-    Startup time improved by 30% (optimized logging and lazy loading)
+### 3.1 Base class — `core/base_database.py`
 
-    Memory usage reduced by 25% (avoided full-text search indexes)
+`BaseDatabase` owns everything shared by both databases:
 
-    UI performance improved by 50% (separated UI components)
+- `init_database()` — subclass hook that creates tables and indexes.
+- `schema_version` table (`version INTEGER`) + `migrate()` / `_apply_migration(target_version)`:
+  migrations are applied in order and the version is bumped only on success.
+- `_get_connection()` — context manager yielding a `sqlite3.Connection` with
+  `row_factory = sqlite3.Row`, `PRAGMA foreign_keys = ON`.
+- `close()` — closes the connection safely.
 
-    Bytecode optimization level 2 (maximum optimization)
+### 3.2 Notes schema (`database.py`)
 
-    Strip enabled to remove debug symbols
-
-1.3 Application Vocabulary
-text
-
-UI Labels (Catalan):    Títol, Petició, Solució, Exemples
-Code/DB Fields (English): title, request, solution, examples
-File/Directory Names: snake_case (english)
-Class/Variable Names: CamelCase/PascalCase (english)
-
-2. DATA LAYER
-2.1 Database Schema (Simplified)
-sql
-
--- Core notes table (required fields only)
-CREATE TABLE notes (
+```sql
+CREATE TABLE IF NOT EXISTS notes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,              -- Indexable, rich text (50 chars recommended)
-    request TEXT,                     -- Rich text field (user request/requirement)
-    solution TEXT,                    -- Main content, rich text
-    examples TEXT,                    -- Short examples, rich text (10-100 chars)
+    title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 100),
+    request TEXT,
+    solution TEXT,
+    examples TEXT CHECK(examples IS NULL OR length(examples) <= 500),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Note metadata (optional): can be added later if needed
-CREATE TABLE note_metadata (
+CREATE TABLE IF NOT EXISTS images (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     note_id INTEGER NOT NULL,
-    tags TEXT,                        -- Optional: comma-separated strings
-    category TEXT,                    -- Optional: single category
-    priority INTEGER DEFAULT 0,
-    FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
-);
-
--- Image management table (separate concern)
-CREATE TABLE images (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    note_id INTEGER NOT NULL,
-    filename TEXT NOT NULL,           -- Reference to /original/
-    thumb_filename TEXT NOT NULL,     -- Reference to /thumbs/
-    width INTEGER,
-    height INTEGER,
+    filename TEXT NOT NULL,
+    thumb_filename TEXT NOT NULL,
     sort_order INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
 );
 
--- Optimizations
-CREATE INDEX idx_notes_title ON notes(title);
-CREATE INDEX idx_images_note ON images(note_id);
-CREATE INDEX idx_metadata_note ON note_metadata(note_id);
-
-2.2 Filesystem Structure (Updated v3.20)
-text
-
-JMEJCat/
-├── data/                         # Application data (portable)
-│   ├── jmejcat.db               # SQLite database (optimized indexes)
-│   ├── backups/                  # Automatic timestamped backups
-│   └── images/                   # Image storage (portable)
-│       ├── original/             # Full-resolution images
-│       │   └── {hash_12}.{ext}   # 12-char hash filenames
-│       └── thumbs/               # Generated thumbnails
-│           └── {hash_12}_256.jpg # 256px width thumbnails
-├── src/                          # Application source
-│   ├── core/                     # Business logic (English naming)
-│   │   ├── database.py           # DB connection & models
-│   │   ├── image_manager.py      # Image handling
-│   │   ├── note_manager.py       # Note CRUD operations
-│   │   └── backup_manager.py     # Auto-backup system
-│   ├── ui/                       # Presentation layer
-│   │   ├── main_window.py        # Main application window
-│   │   ├── widgets/              # Reusable components (v3.20)
-│   │   │   ├── image_gallery.py  # Thumbnail grid (separated)
-│   │   │   ├── image_viewer.py   # Full-size viewer (separated)
-│   │   │   └── search_widget.py  # Unified search
-│   │   └── editors/              # Text editors
-│   │       └── rich_text_editor.py
-│   └── utils/                    # Utilities
-│       ├── paths.py              # Path management
-│       ├── validators.py         # Input validation
-│       └── logger.py             # Application logging
-└── config/                       # Configuration
-    ├── constants.py              # App constants
-    └── settings.py               # User settings
-
-3. CORE COMPONENTS
-3.1 NoteManager Class
-python
-
-from datetime import datetime
-from typing import Optional, List
-from pathlib import Path
-
-class NoteManager:
-    """Handles all note operations following SoC principle"""
-    
-    def __init__(self, db_path: Path):
-        self.db_path = db_path
-        self._init_database()
-    
-    def create_note(self, title: str, request: str = "", 
-                   solution: str = "", examples: str = "") -> int:
-        """Create a new note with core fields only"""
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO notes (title, request, solution, examples, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (title, request, solution, examples, datetime.now(), datetime.now()))
-            return cursor.lastrowid
-    
-    def search_notes(self, query: str, field: str = "title") -> List[dict]:
-        """Search notes by field (title only in v0.1)"""
-        with self._get_connection() as conn:
-            conn.row_factory = self._dict_factory
-            cursor = conn.cursor()
-            cursor.execute(f"""
-                SELECT id, title, request, solution, examples, created_at, updated_at
-                FROM notes 
-                WHERE {field} LIKE ?
-                ORDER BY updated_at DESC
-            """, (f"%{query}%",))
-            return cursor.fetchall()
-
-3.2 ImageManager Class (Enhanced)
-python
-
-class ImageManager:
-    """Handles image operations with Python 3.12+ features"""
-    
-    def __init__(self, base_path: Path):
-        self.base_path = base_path
-        self.original_dir = base_path / "images" / "original"
-        self.thumbs_dir = base_path / "images" / "thumbs"
-        self._ensure_directories()
-    
-    @staticmethod
-    def _generate_file_hash(source_path: Path, length: int = 12) -> str:
-        """Generate short hash for filename using SHA256"""
-        import hashlib
-        content = source_path.read_bytes()
-        timestamp = str(datetime.now().timestamp()).encode()
-        return hashlib.sha256(content + timestamp).hexdigest()[:length]
-    
-    def add_image_to_note(self, source_path: Path, note_id: int) -> dict:
-        """Process new image with type hints for Python 3.12"""
-        # Generate unique filename with short hash
-        file_hash = self._generate_file_hash(source_path)
-        ext = source_path.suffix.lower() or '.jpg'
-        filename = f"{file_hash}{ext}"
-        
-        # Copy original
-        target_path = self.original_dir / filename
-        shutil.copy2(source_path, target_path)
-        
-        # Generate thumbnail
-        thumb_filename = f"{file_hash}_256.jpg"
-        thumb_path = self.thumbs_dir / thumb_filename
-        self._generate_thumbnail(target_path, thumb_path)
-        
-        # Return image record
-        return {
-            "note_id": note_id,
-            "filename": filename,
-            "thumb_filename": thumb_filename,
-            "width": 0,  # Would extract from image
-            "height": 0   # Would extract from image
-        }
-
-4. USER INTERFACE
-4.1 Main Window Layout (Simplified)
-text
-
-QMainWindow
-├── MenuBar: Archivo, Editar, Ver, Ayuda (Catalan UI)
-├── ToolBar: Guardar (Ctrl+S), Buscar (Ctrl+F), Nueva nota, Insertar imagen
-├── Central: QSplitter
-│   ├── Left Panel (30%): Note Navigator
-│   │   ├── QLineEdit [Buscar...] with Ctrl+F focus
-│   │   ├── QListWidget (Note titles only)
-│   │   └── QLabel (X notas)
-│   └── Right Panel (70%): Note Editor
-│       ├── QLineEdit [Título] (maps to 'title')
-│       ├── QTextEdit [Petición] (maps to 'request', rich text)
-│       ├── QTextEdit [Solución] (maps to 'solution', rich text)
-│       ├── QTextEdit [Ejemplos] (maps to 'examples', rich text)
-│       └── ImageGallery widget
-└── StatusBar: Estado de guardado, Contador de imágenes
-
-4.2 Keyboard Shortcuts (Updated)
-text
-
-Global:
-  Ctrl+S          : Guardar nota actual
-  Ctrl+F          : Enfocar búsqueda
-  Ctrl+N          : Nueva nota
-  Ctrl+Q          : Salir
-  Ctrl+I          : Insertar imagen
-
-Editor de texto:
-  Ctrl+B          : Negrita
-  Ctrl+I          : Cursiva
-  Ctrl+U          : Subrayado
-  Ctrl+Shift+C    : Color de texto
-
-5. CONFIGURATION
-5.1 Constants (constants.py) - Updated v3.20
-python
-
-# Application metadata
-APP_NAME = "JMEJCat"
-APP_VERSION = "3.20"
-APP_AUTHOR = "Josep Maria Tapia Estaragues"
-APP_LICENSE = "LGPL v3"
-MIN_PYTHON_VERSION = (3, 13, 0)
-
-# Database
-DB_FILENAME = "jmejcat.db"
-DB_VERSION = 1
-BACKUP_COUNT = 5
-
-# Images
-THUMBNAIL_SIZE = (256, 256)
-THUMBNAIL_QUALITY = 85
-IMAGE_HASH_LENGTH = 12
-
-# UI Limits
-TITLE_MAX_LENGTH = 100
-EXAMPLES_MAX_LENGTH = 500
-
-# Performance (v3.20)
-AUTOSAVE_INTERVAL = 30  # seconds
-IMAGE_CACHE_SIZE = 50   # number of images in memory
-SEARCH_DELAY_MS = 300   # delay before search
-
-5.2 Path Management (paths.py)
-python
-
-from pathlib import Path
-import sys
-
-def get_portable_data_path() -> Path:
-    """
-    Get data path that works in development and packaged executable.
-    Python 3.12+ pathlib improvements ensure cross-platform compatibility.
-    """
-    if getattr(sys, 'frozen', False):  # Packaged with PyInstaller/Nuitka
-        app_dir = Path(sys.executable).parent
-    else:  # Development
-        app_dir = Path(__file__).parent.parent.parent
-    
-    data_dir = app_dir / "data"
-    data_dir.mkdir(exist_ok=True)
-    
-    # Create subdirectories
-    for subdir in ["backups", "images/original", "images/thumbs"]:
-        (data_dir / subdir).mkdir(parents=True, exist_ok=True)
-    
-    return data_dir
-
-6. BUILD & DEPLOYMENT
-6.1 Build Configuration
-python
-
-# build_config.py for Python 3.12+
-import sys
-import subprocess
-from pathlib import Path
-
-class BuildConfig:
-    PYTHON_VERSION = "3.12"
-    PYSIDE_VERSION = "6.11"
-    
-    @staticmethod
-    def create_portable_bundle():
-        """Create portable Windows bundle"""
-        if sys.platform != "win32":
-            print("Warning: Portable bundle optimized for Windows")
-        
-        # PyInstaller command for single executable
-        cmd = [
-            'pyinstaller',
-            '--name', 'JMEJCat',
-            '--windowed',
-            '--onefile',
-            f'--add-data=data{os.pathsep}data',
-            '--icon', 'assets/icon.ico',
-            '--target-architecture', 'x86_64',
-            '--python-option', 'O',  # Basic optimizations
-            'src/main.py'
-        ]
-        
-        # Add Python 3.12+ specific optimizations
-        if sys.version_info >= (3, 12):
-            cmd.extend(['--python-option', 'OO'])  # More optimizations
-        
-        subprocess.run(cmd)
-
-6.2 Portable Distribution
-text
-
-JMEJCat_0.1.0-beta_Portable_Win64/
-├── JMEJCat.exe                   # Single executable (Python 3.12 + PySide6)
-├── data/                         # Complete portable data
-│   ├── jmejcat.db               # Fresh database
-│   ├── backups/                  # Auto-created on first run
-│   └── images/                   # Image directories
-│       ├── original/
-│       └── thumbs/
-├── README_ES.txt                # Catalan instructions
-└── LICENSE.txt                  # LGPL v3
-
-7. DEVELOPMENT WORKFLOW
-7.1 Setup Script (setup.bat - Updated)
-batch
-
-@echo off
-echo ========================================
-echo    JMEJCat - Environment Setup (Python 3.12+)
-echo ========================================
-echo.
-
-REM Check for Python 3.12+
-python --version 2>nul | findstr /r "3.1[2-9]" >nul
-if errorlevel 1 (
-    echo ERROR: Python 3.12 or higher required.
-    echo Download from https://python.org
-    pause
-    exit /b 1
-)
-
-REM Create virtual environment with modern Python
-python -m venv venv --upgrade-deps
-call venv\Scripts\activate.bat
-
-REM Install core dependencies
-pip install PySide6>=6.7.0
-pip install Pillow>=10.0.0  # Optional but recommended
-
-REM Create directory structure
-mkdir data 2>nul
-mkdir data\images 2>nul
-mkdir data\images\original 2>nul
-mkdir data\images\thumbs 2>nul
-mkdir data\backups 2>nul
-
-echo.
-echo Setup completed. Activate with: venv\Scripts\activate
-pause
-
-7.2 Code Style Guidelines
-```python
-# 1. English for code, Catalan for UI labels
-button.setText("Guardar")  # UI: Catalan
-def save_note():          # Code: English
-    pass
-
-# 2. Type hints for Python 3.12+
-def process_image(path: Path) -> dict[str, Any]:
-    """Process image with modern type hints"""
-    ...
-
-# 3. Separation of Concerns
-# database.py - Only DB operations
-# image_manager.py - Only image operations
-# main_window.py - Only UI logic
+CREATE INDEX IF NOT EXISTS idx_notes_title ON notes(title);
+CREATE INDEX IF NOT EXISTS idx_images_note ON images(note_id);
 ```
 
-8. ROADMAP & FUTURE EXTENSIONS
-8.1 Version 0.2.0 (Planned)
+Migration **v2** adds the `CHECK` constraints. Existing databases keep working
+(the constraints are additionally enforced in Python by `_validate_note_fields`).
 
-    Optional tags and category fields via note_metadata table
+Public API (`Database`):
 
-    Advanced search across all text fields
+| Method | Purpose |
+|---|---|
+| `create_note(title, request, solution, examples) -> int` | Insert a note |
+| `get_note(note_id) -> dict \| None` | Fetch one note |
+| `update_note(note_id, title, request, solution, examples) -> bool` | Update |
+| `delete_note(note_id) -> bool` | Delete (cascade images) |
+| `get_all_notes(...) -> list[dict]` | Ordered list for the navigator |
+| `search_notes(query, fields=None, limit=None, offset=0) -> list[dict]` | **Unified search** (v4.0) |
+| `add_image / get_note_images / delete_image` | Image records |
+| `move_image_up / move_image_down` | Reordering |
+| `get_stats() -> dict` | Counters for the status bar |
 
-    Export to PDF functionality
+### 3.3 Tramitació schema (`tramitacio_database.py`)
 
-    Settings dialog for user preferences
+```sql
+CREATE TABLE IF NOT EXISTS tramitacio (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    numero TEXT NOT NULL CHECK(length(numero) BETWEEN 1 AND 5 AND numero NOT GLOB '*[^0-9]*'),
+    any INTEGER NOT NULL CHECK(any BETWEEN 1000 AND 9999),
+    data TEXT NOT NULL CHECK(length(data) = 10 AND data GLOB '[0-9][0-9]/[0-9][0-9]/[0-9][0-9][0-9][0-9]'),
+    info TEXT,
+    color TEXT DEFAULT '',
+    reminder_at TEXT DEFAULT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 
-8.2 Version 0.3.0 (Future)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tramitacio_numero_any ON tramitacio(numero, any);
+CREATE INDEX IF NOT EXISTS idx_tramitacio_any ON tramitacio(any);
+CREATE INDEX IF NOT EXISTS idx_tramitacio_data ON tramitacio(data);
+```
 
-    SQLCipher integration for encryption
+Highlights:
 
-    Plugin system for extensions
+- `reminder_at` is added defensively with `ALTER TABLE` (older databases).
+- `_consolidate_duplicates()` merges duplicate `(numero, any)` rows **before**
+  creating the UNIQUE index, so the index creation never fails.
+- `upsert_tramit()` merges the `info` text of an existing case.
+- Maintenance: `rebuild_indexes()`, `vacuum()`, `purge_old_records(days)`,
+  `update_statistics()`, `get_database_stats()`.
 
-    Cloud sync (optional)
+### 3.4 Unified search (`core/search.py`)
 
-    Markdown support
+```python
+escape_like(query) -> str          # escapes %, _ and \
+like_param(query) -> str            # "%" + escaped + "%"
+build_like_condition(column, query) -> tuple[str, Any]   # ("col LIKE ? ESCAPE '\\'", param)
+```
 
-9. DEVELOPMENT PRINCIPLES (Updated)
+Both databases use the same helper, so `%` and `_` are matched **literally**.
+`Database.search_notes` accepts a `fields` allow-list
+(`{"title", "request", "solution", "examples"}`) — the column name can never be
+injected — and optional `limit` / `offset` for pagination.
+`TramitacioDatabase.search_tramits` mirrors the same signature.
 
-    Separation of Concerns: Strict module boundaries
+Search UI (v4.1): two independent boxes — *Cerca per títol…* (`fields=["title"]`)
+and *Cerca dins el text…* (`fields=["request", "solution"]`) — with a shared
+300 ms debounce; writing in one clears the other; `Ctrl+F` focuses the title box.
 
-    Portability First: No absolute paths, no registry dependencies
+---
 
-    Python 3.12+ Modernity: Leverage typing, pathlib, and performance
+## 4. CORE COMPONENTS
 
-    Vocabulary Consistency: English in code, Catalan in UI
+### 4.1 `BackupManager` (`backup_manager.py`, fully typed)
 
-    Progressive Enhancement: Core features first (title, request, solution, examples)
+Typed dataclasses: `BackupType`, `BackupInfo`, `VerifyResult`.
 
-    LGPL Compliance: Ensure PySide6 compatibility
+| Method | Purpose |
+|---|---|
+| `backup_database(backup_type="all") -> bool` | Timestamped copy of the DBs (and optional image zip) |
+| `restore_backup(backup_filename: str \| Path) -> bool` | Restore a backup (path or name) |
+| `get_backup_list(db_name: str \| None = None) -> list[BackupInfo]` | Sorted inventory, optional per-DB filter |
+| `verify_backup_file(backup_path: Path \| str) -> VerifyResult` | Integrity check of one file |
+| `verify_backups_in_folder(folder_path) -> list[BackupInfo]` | Integrity check of the whole folder |
+| `cleanup_old_backups(...)` | Keep the last `BACKUP_COUNT` (5) backups |
+
+Automatic backups run **on application close** and **periodically (every 30 min)**,
+and the retained backups are verified by `verify_automatica.py`.
+
+### 4.2 `ImageManager` (`image_manager.py`)
+
+- Content hash: `sha256(content)[:12]` → identical images are **deduplicated**
+  (`_resolve_unique_name()` appends `_1`, `_2`… on collision).
+- Thumbnails: `THUMBNAIL_SIZE = (256, 256)`, JPEG quality 85.
+- Works with or without Pillow (falls back to copying the original).
+
+### 4.3 Exporters
+
+- `pdf_exporter.py` — PDF via `QtPrintSupport` (`QTextDocument.print()`).
+- `md_exporter.py` — Markdown conversion of a note (HTML → Markdown, `html.parser`).
+- `calculator.py` — court fee calculation (30 % expenses, `TAX_PERCENTAGE`).
+
+---
+
+## 5. USER INTERFACE
+
+### 5.1 `MainWindow` (`ui_window.py`)
+
+Composed from eight mixins (single responsibility per concern):
+
+```python
+class MainWindow(
+    UiWindowMenuMixin, UiWindowEditorMixin, UiWindowFormattingMixin,
+    UiWindowNotesMixin, UiWindowImagesMixin, UiWindowExportMixin,
+    UiWindowBackupMixin, UiWindowTramitacioMixin, QMainWindow,
+): ...
+```
+
+Layout:
+
+```text
+QMainWindow
+├── MenuBar: Fitxer, Editar, Format, Eines, Ajuda (Catalan UI)
+├── Central: QSplitter (300 / 900)
+│   ├── Left panel
+│   │   ├── QLineEdit "Cerca per títol…"      (Ctrl+F)
+│   │   ├── QLineEdit "Cerca dins el text…"
+│   │   └── QListWidget (note titles + counters)
+│   └── Right panel
+│       ├── QLineEdit  [Títol]
+│       ├── QTextEdit  [Petició]      (rich text)
+│       ├── QTextEdit  [Solució]      (rich text, expandable)
+│       ├── QTextEdit  [Exemples]
+│       └── ImageGallery (4 columns)
+└── StatusBar: save indicator, counters, transient messages
+```
+
+Behaviour highlights:
+
+- **Autosave** every 30 s (`AUTOSAVE_INTERVAL`), only when the note is dirty.
+- **Expanded Solution editor** (`Ctrl+Shift+E`): a non-modal dialog **bound to its
+  origin note** (`_expanded_note_id` / `_expanded_original_html`). Saving always
+  writes to that note, even if the main window has moved on to another one (fix v4.2).
+- **Format painter**: copies the formatting of the current selection; double-click
+  activates multi-application mode; `Esc` resets it (v4.4).
+- **Zoom**: `Ctrl++` / `Ctrl+-` / `Ctrl+0` change the font size application-wide
+  (persisted with `QSettings`), including the expanded editor and Tramitació window.
+- **Closing**: asks to save, runs a final backup and cleans the backup folder.
+
+### 5.2 Tramitació window (`tramitacio_window.py`)
+
+- Table of cases with colour tags, filters, statistics, PDF/Markdown export.
+- **Edit dialog is non-modal (v4.3)**: `TramitacioEditDialog` is opened with
+  `show()` instead of `exec()`, so the rest of the application stays usable.
+  - Closing with the X auto-saves to the case's own database.
+  - Invalid data keeps the dialog open and shows a `WindowModal` warning
+    (blocking only the dialog, not the whole application).
+  - A custom `dialog_closed` signal notifies the parent (Qt does not emit
+    `finished` when a window is closed with the X).
+  - The parent keeps a registry (`_edit_dialogs`) and reuses/raises an already
+    open dialog for the same case.
+
+### 5.3 Keyboard shortcuts
+
+| Context | Shortcut | Action |
+|---|---|---|
+| Global | `Ctrl+N` / `Ctrl+S` / `Ctrl+F` / `Ctrl+Q` | New / Save / Focus search / Quit |
+| Global | `Ctrl++`, `Ctrl+-`, `Ctrl+0` | UI zoom in / out / reset |
+| Editors | `Ctrl+B`, `Ctrl+I`, `Ctrl+U`, `Ctrl+T` | Bold, italic, underline, strikethrough |
+| Editors | `Ctrl+Shift+V` | Paste as plain text |
+| Editors | `Shift+F3` | Cycle upper/lower case |
+| Editors | `Ctrl+Shift+E` | Expand Solution editor |
+| Editors | `Esc` | Reset format painter |
+
+---
+
+## 6. CONFIGURATION
+
+### 6.1 `config.py` (single source of truth)
+
+| Group | Constants |
+|---|---|
+| Metadata | `APP_NAME`, `APP_VERSION` (**4.4**), `APP_AUTHOR`, `APP_LICENSE`, `APP_WEBSITE` |
+| Database | `DB_FILENAME="jmejcat.db"`, `DB_FILENAME_TRAMITACIO="tramitacio.db"`, `DB_VERSION=2`, `BACKUP_COUNT=5` |
+| Images | `THUMBNAIL_SIZE=(256, 256)`, `THUMBNAIL_QUALITY=85`, `IMAGE_HASH_LENGTH=12`, `SUPPORTED_IMAGE_EXTENSIONS` |
+| UI limits | `TITLE_MAX_LENGTH=100`, `EXAMPLES_MAX_LENGTH=500`, `MAIN_WINDOW_SIZE`, `SPLITTER_SIZES`, `GALLERY_COLUMNS=4` |
+| Search | `SEARCH_DELAY_MS=300`, `SEARCH_FIELDS=["title","request","solution"]` |
+| Timing | `AUTOSAVE_INTERVAL=30` |
+| Tramitació | `DATE_FORMAT="dd/MM/yyyy"`, `TAX_PERCENTAGE=0.30` |
+| Theme | `COLORS`, `FONTS` |
+
+`MIN_PYTHON_VERSION = (3, 13, 0)` is enforced at import time.
+
+### 6.2 `utils.py` — path management
+
+`get_app_path()`, `get_data_path()`, `get_images_path()`,
+`get_original_images_path()`, `get_thumbnails_path()`, `get_backups_path()`
+(all `lru_cache`d) resolve relative to the executable when frozen, or to the
+project folder in development. `setup_data_directories()` creates the tree and
+verifies write permissions. `validate_date_ddmmyyyy()` and `is_portable_mode()`
+are the only other helpers.
+
+### 6.3 `jmejcat.py` — entry point
+
+1. Installs a global exception handler (`jmejcat_crash.log` next to the exe).
+2. Configures logging: `logs/` next to the exe when frozen, `~/.jmejcat_logs` in
+   development, WARNING level in production, 30-day log rotation.
+3. **Single instance**: `~/.jmejcat.lock` stores the PID; a stale lock (crashed
+   process) is detected and removed instead of blocking startup.
+4. Sets `QT_PLUGIN_PATH` for the bundled `_internal/PySide6/plugins`.
+5. Creates the data directories, then `MainWindow` and `app.exec()`.
+
+---
+
+## 7. BUILD & DEPLOYMENT
+
+### 7.1 `build.bat` (Windows)
+
+Steps: kill any running `JMEJCat.exe` → clean `build/` and `dist/` → run
+PyInstaller with `JMEJCat.spec` → remove unused PySide6 modules → write
+`dist/JMEJCat/README.txt` → report **BUILD EXITOSO**.
+
+Requires `verify_automatica.py` to pass before packaging.
+
+### 7.2 `JMEJCat.spec`
+
+- `Analysis(['jmejcat.py'])`, `datas=[('assets','assets')]`.
+- **`data/` is never bundled**: the app creates it next to the exe on first run,
+  so real user data is never overwritten by a build.
+- `optimize=2`, `upx=True`, `console=False`, `icon=['assets\\icon.ico']`.
+- Explicitly excluded: `matplotlib`, `numpy`, `scipy`, `pandas`, `tkinter`,
+  `PyQt5/6`, `email`, `http`, `urllib`, `xml`, `unittest`, `pip`, `conda`…
+- `exclude_binaries={'opengl32sw.dll'}`.
+
+### 7.3 Portable distribution (onedir)
+
+```text
+dist/JMEJCat/
+├── JMEJCat.exe
+├── _internal/            # Python runtime + Qt (onedir layout)
+├── assets/
+└── README.txt            # Catalan instructions
+```
+
+`data/` is created on first run next to the executable.
+The bundle is ~110–120 MB.
+
+---
+
+## 8. QUALITY ASSURANCE
+
+### 8.1 Tooling configuration (`pyproject.toml`)
+
+- **ruff**: `line-length = 100`, `target-version = "py313"`, `select = ["F","E","W","UP","I"]`,
+  `E501` ignored globally (HTML/CSS inside f-strings). Excludes `build/`, `dist/`,
+  `data/`, `backups/`, `tests/`.
+- **mypy**: `python_version = "3.13"`, `warn_return_any`, `ignore_missing_imports`,
+  `disable_error_code = ["attr-defined"]`.
+  - Stricter group (`disallow_untyped_defs = true`): `core.base_database`,
+    `core.tramit_colors`, `core.search`, `database`, `tramitacio_database`,
+    `backup_manager`, `utils`.
+  - Relaxed group (Qt callbacks): `ui_window`, `ui.*`, `jmejcat`, `calculator`,
+    `image_*`, `*_exporter`, `tramitacio_*`, with `call-overload`, `arg-type`,
+    `has-type` disabled (known debt: the mixins do not inherit `QWidget`).
+  - Tests are not type-checked.
+- **pytest**: `testpaths = ["tests"]`, `--strict-markers`, `--tb=short`.
+- **coverage**: `branch = true`, source = data layer + `core` + `config` + `utils`,
+  `fail_under = 70`.
+
+### 8.2 Test suite (92 tests)
+
+| File | Coverage |
+|---|---|
+| `tests/conftest.py` | Fixtures; patches `utils.*` paths |
+| `test_database.py` | CRUD, validation, ordering, images |
+| `test_tramitacio.py` | Cases, upsert, alarms, maintenance |
+| `test_search_unified.py` | Multi-field search, escaping, pagination, title/body split |
+| `test_backup_restore.py` | Backup, restore, verify, cleanup (isolated paths) |
+| `test_export.py` | Markdown / PDF export paths |
+| `test_format_painter.py` | Format painter modes and signals (v4.4) |
+| `test_tramitacio_nonmodal.py` | Non-modal dialog behaviour (v4.3) |
+| `test_config.py` | Constants and version consistency |
+
+### 8.3 Commands
+
+```powershell
+& 'C:\Users\JM\miniconda3\envs\jm_pyside_313\python.exe' -m pytest -q
+& 'C:\Users\JM\miniconda3\envs\jm_pyside_313\python.exe' -m ruff check .
+& 'C:\Users\JM\miniconda3\envs\jm_pyside_313\python.exe' -m mypy .
+& 'C:\Users\JM\miniconda3\envs\jm_pyside_313\python.exe' verify_automatica.py
+```
+
+`verify_automatica.py` performs 50 self-checks (structure, imports, database
+schema, config/version consistency, backups, assets) and must report
+**50/50 PASSED** before any build.
+
+### 8.4 Version consistency rule
+
+Every release updates **all** of the following, or the verification fails:
+
+`config.py` (`APP_VERSION`) · `pyproject.toml` (`version`) ·
+`verify_automatica.py` (`PROJECT_VERSION`) · `AGENTS.md` · `CHANGELOG.md` ·
+`ui_window.py` → *Ajuda → Quant a* (novetats).
+
+---
+
+## 9. KNOWN DEBTS & ROADMAP
+
+### 9.1 Open items
+
+1. **Flat layout** — the modules live at the repository root instead of a
+   `src/jmejcat/` package. Migrating requires coordinated changes in
+   `build.bat`, `JMEJCat.spec`, CI and `query.js` (deferred on purpose).
+2. **Mixins are not `QWidget` subclasses** — hence the mypy exemptions for the
+   UI layer.
+3. **Format painter only in the expanded Solution editor**, not in the main
+   window (pending decision).
+4. **`TECHNICAL_MANIFEST.md`** — this revision (v4.4) replaces the obsolete
+   v3.57 text; it must be refreshed with every major version bump.
+5. `query.js` / `node_modules` — leftover tooling not used by the application.
+
+### 9.2 Planned
+
+- Packaging under `src/jmejcat/` (with compatibility shims).
+- Progressive typing: extend the strict mypy group to the UI mixins.
+- Coverage target raise from 70 % to 85 %.
+- Optional `note_metadata` table (tags / category / priority) for the notes DB.
+
+---
 
 Maintainer: JMEJCat Development Team
 License: LGPL v3 (compatible with PySide6)
-Minimum Python: 3.12.0
+Minimum Python: 3.13.0
 Target Platform: Windows 10/11 64-bit
-Repository: (To be determined)
+Repository: https://github.com/JosepM64/JMEjcat
