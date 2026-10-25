@@ -1,21 +1,21 @@
 # Dependencias principales
-PySide6>=6.11.2  # Qt 6.x - Compatible con Python 3.13+ (instalada 6.11.2)
-Pillow>=12.3.0
+PySide6>=6.12.0  # Qt 6.x - Compatible con Python 3.13+ (instalada 6.12.0)
+Pillow>=13.0.0
 
 # Dependencias de desarrollo (opcionales)
 # black>=24.0.0          # Formateador de código
 # flake8>=7.0.0          # Linter
 
 # Lint i type-check (instal·lats 0.16.9 i 2.3.1)
-ruff>=0.16.0
-mypy>=2.3.0
+ruff>=0.17.2
+mypy>=2.4.0
 
 # Tests (instal·lada 9.1.1 + cov 7.1.0)
-pytest>=8.0.0
-pytest-cov>=5.0.0
+pytest>=9.1.1
+pytest-cov>=7.1.0
 
 # Para empaquetado
-pyinstaller>=6.22.2    # Para crear ejecutables (instalada 6.22.2)
+pyinstaller>=6.22.3    # Para crear ejecutables (instalada 6.22.3)
 # nuitka>=2.0.0         # Alternativa a PyInstaller
 
 # Nota: SQLite3 viene incluido con Python
