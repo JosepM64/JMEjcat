@@ -38,18 +38,21 @@ class TramitacioDatabase(BaseDatabase):
                     info TEXT,
                     color TEXT DEFAULT '',
                     reminder_at TEXT DEFAULT NULL,
+                    catalan INTEGER DEFAULT 0,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
 
-            # Migració: afegir columna reminder_at si no existeix
-            try:
-                cursor.execute(
-                    "ALTER TABLE tramitacio ADD COLUMN reminder_at TEXT DEFAULT NULL"
-                )
-            except sqlite3.OperationalError:
-                pass  # Ja existeix
+            # Migració: afegir columnes si no existeixen (BD antigues)
+            for col_sql in (
+                "ALTER TABLE tramitacio ADD COLUMN reminder_at TEXT DEFAULT NULL",
+                "ALTER TABLE tramitacio ADD COLUMN catalan INTEGER DEFAULT 0",
+            ):
+                try:
+                    cursor.execute(col_sql)
+                except sqlite3.OperationalError:
+                    pass  # Ja existeix
 
             # Netejar duplicats abans de crear l'índex UNIQUE
             self._consolidate_duplicates(conn)
@@ -163,17 +166,22 @@ class TramitacioDatabase(BaseDatabase):
         info: str = "",
         color: str = "",
         reminder_at: str | None = None,
+        catalan: int = 0,
     ) -> int:
-        """Crea una nova tramitació i retorna el seu ID."""
+        """Crea una nova tramitació i retorna el seu ID.
+
+        Args:
+            catalan: 1 si el tràmit es processa en català, 0 altrament.
+        """
         self._validate_tramit_fields(numero, any, data)
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT INTO tramitacio (numero, any, data, info, color, reminder_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO tramitacio (numero, any, data, info, color, reminder_at, catalan)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-                (numero, any, data, info, color, reminder_at),
+                (numero, any, data, info, color, reminder_at, catalan),
             )
             tramit_id = cast(int, cursor.lastrowid)
             logger.info(f"Tramitació creada amb ID: {tramit_id}")
@@ -196,8 +204,13 @@ class TramitacioDatabase(BaseDatabase):
         info: str,
         color: str = "",
         reminder_at: str | None = None,
+        catalan: int = 0,
     ) -> bool:
-        """Actualitza una tramitació existent."""
+        """Actualitza una tramitació existent.
+
+        Args:
+            catalan: 1 si el tràmit es processa en català, 0 altrament.
+        """
         self._validate_tramit_fields(numero, any, data)
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -205,10 +218,10 @@ class TramitacioDatabase(BaseDatabase):
                 """
                 UPDATE tramitacio
                 SET numero = ?, any = ?, data = ?, info = ?, color = ?, reminder_at = ?,
-                    updated_at = CURRENT_TIMESTAMP
+                    catalan = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """,
-                (numero, any, data, info, color, reminder_at, tramit_id),
+                (numero, any, data, info, color, reminder_at, catalan, tramit_id),
             )
             updated = cursor.rowcount > 0
             if updated:
@@ -350,9 +363,14 @@ class TramitacioDatabase(BaseDatabase):
         info: str = "",
         color: str = "",
         reminder_at: str | None = None,
+        catalan: int = 0,
     ) -> int:
         """Insereix o actualitza un tràmit segons número+any. Retorna l'ID.
-        Si ja existeix, consolida la info: manté l'antiga i afegeix la nova després."""
+        Si ja existeix, consolida la info: manté l'antiga i afegeix la nova després.
+
+        Args:
+            catalan: 1 si el tràmit es processa en català, 0 altrament.
+        """
         self._validate_tramit_fields(numero, any, data)
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -370,20 +388,20 @@ class TramitacioDatabase(BaseDatabase):
                     """
                     UPDATE tramitacio
                     SET data = ?, info = ?, color = ?, reminder_at = ?,
-                        updated_at = CURRENT_TIMESTAMP
+                        catalan = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                 """,
-                    (data, consolidated_info, color, reminder_at, existing_id),
+                    (data, consolidated_info, color, reminder_at, catalan, existing_id),
                 )
                 tramit_id = existing_id
                 logger.info(f"Tramitació {tramit_id} actualitzada (upsert, info consolidada)")
             else:
                 cursor.execute(
                     """
-                    INSERT INTO tramitacio (numero, any, data, info, color, reminder_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO tramitacio (numero, any, data, info, color, reminder_at, catalan)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                    (numero, any, data, info, color, reminder_at),
+                    (numero, any, data, info, color, reminder_at, catalan),
                 )
                 tramit_id = cast(int, cursor.lastrowid)
                 logger.info(f"Tramitació creada amb ID: {tramit_id} (upsert)")

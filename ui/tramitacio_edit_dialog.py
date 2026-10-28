@@ -193,6 +193,17 @@ class TramitacioEditDialog(QDialog):
                 self.color_input.addItem(color_name, color_key)
         color_layout.addWidget(self.color_input)
         button_layout.addLayout(color_layout)
+        # v4.5: Botó CAT — indica si el tràmit es processa en català
+        self.btn_catalan = QPushButton("CAT")
+        self.btn_catalan.setCheckable(True)
+        self.btn_catalan.setFixedSize(36, 28)
+        self.btn_catalan.setToolTip("Tramitar en català (activat/desactivat)")
+        self.btn_catalan.setStyleSheet(
+            "QPushButton { background-color: #f0f0f0; color: #333; border: 1px solid #aaa; border-radius: 4px; font-weight: bold; }\n"
+            "QPushButton:checked { background-color: #4CAF50; color: white; border: 1px solid #388e3c; }\n"
+        )
+        self.btn_catalan.clicked.connect(self._toggle_catalan)
+        button_layout.addWidget(self.btn_catalan)
         button_layout.addStretch()
         self.btn_guardar = QPushButton("Guardar")
         self.btn_guardar.clicked.connect(self.on_guardar_clicked)
@@ -225,6 +236,9 @@ class TramitacioEditDialog(QDialog):
             index = self.color_input.findData(tramit_color)
             if index >= 0:
                 self.color_input.setCurrentIndex(index)
+            # Estat CAT (tramitar en català)
+            self.btn_catalan.setChecked(bool(self.tramit.get("catalan", 0)))
+            self._apply_catalan_style(self.btn_catalan.isChecked())
             # Mostrar l'estat de l'avís
             reminder_at = self.tramit.get("reminder_at")
             if reminder_at:
@@ -244,6 +258,23 @@ class TramitacioEditDialog(QDialog):
             avui = datetime.now().strftime("%d/%m/%Y")
             self.data_input.setText(avui)
             self.reminder_button.setText("⏰ Establir avís")
+            self.btn_catalan.setChecked(False)
+            self._apply_catalan_style(False)
+
+    def _toggle_catalan(self):
+        """Canvia l'estil visual del botó CAT quan es toca."""
+        self._apply_catalan_style(self.btn_catalan.isChecked())
+
+    def _apply_catalan_style(self, enabled: bool) -> None:
+        """Aplica el color visual al botó CAT segons l'estat."""
+        if enabled:
+            self.btn_catalan.setStyleSheet(
+                "QPushButton { background-color: #4CAF50; color: white; border: 1px solid #388e3c; border-radius: 4px; font-weight: bold; }\n"
+            )
+        else:
+            self.btn_catalan.setStyleSheet(
+                "QPushButton { background-color: #f0f0f0; color: #333; border: 1px solid #aaa; border-radius: 4px; font-weight: bold; }\n"
+            )
 
     def show_info_context_menu(self, pos):
         """Mostra menú contextual al camp Info amb opció d'enganxar text pla."""
@@ -357,6 +388,7 @@ class TramitacioEditDialog(QDialog):
         data = self.data_input.text().strip()
         info = self.info_input.toPlainText().strip()
         color = self.color_input.currentData()
+        catalan = 1 if self.btn_catalan.isChecked() else 0
         # Validacions
         if not numero or not numero.isdigit() or len(numero) > 5:
             self._msg(
@@ -418,19 +450,19 @@ class TramitacioEditDialog(QDialog):
                 # Sobreescriure el registre existent duplicat
                 self.db.update_tramit(
                     existing["id"], numero, any_val, data, info, color,
-                    reminder_at=reminder_at
+                    reminder_at=reminder_at, catalan=catalan
                 )
             elif self.tramit.get("id"):
                 # Edició directa: reemplaçar, no mergejar
                 self.db.update_tramit(
                     self.tramit["id"], numero, any_val, data, info, color,
-                    reminder_at=reminder_at
+                    reminder_at=reminder_at, catalan=catalan
                 )
             else:
                 # Tràmit nou
                 self.db.create_tramit(
                     numero, any_val, data, info, color,
-                    reminder_at=reminder_at
+                    reminder_at=reminder_at, catalan=catalan
                 )
             return True
         except Exception as e:

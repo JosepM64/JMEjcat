@@ -429,6 +429,11 @@ class MainWindow(
 
         <p>Llicència: LGPL v3</p>
 
+        <h3>Novetats v4.5:</h3>
+        <ul>
+            <li>Botó CAT als expedients de Tramitació: marca si es tramita en català (verd) o no (gris)</li>
+        </ul>
+
         <h3>Novetats v4.4:</h3>
         <ul>
             <li>El pintor de format admet doble clic per reutilitzar un format</li>

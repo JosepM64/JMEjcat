@@ -1,5 +1,12 @@
 # Changelog - JMEJCat
 
+## v4.5 (2026-10-28)
+
+### Camp CAT (tramitar en català) als expedients de Tramitació
+- BD: nova columna `catalan INTEGER DEFAULT 0` a la taula `tramitacio` (migració defensiva `ALTER TABLE` per a BD existents). `create_tramit`, `update_tramit` i `upsert_tramit` accepten `catalan: int = 0`.
+- `TramitacioEditDialog`: nou botó toggle "CAT" al costat de Color. En verd = tramit en català; gris = no. L'estat es desa al camp `catalan` al Guardar / tancament automàtic i es recupera al obrir l'expedient.
+- SoC manté: BD a `tramitacio_database.py`; UI al diàleg; versiòn pujada a 4.5.
+
 ## v4.4 (2026-10-22)
 
 ### Neteja de codi orfe
