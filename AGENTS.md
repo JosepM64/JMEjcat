@@ -2,8 +2,8 @@
 
 ## Descripció
 Gestió d'apunts i control d'expedients per a un tramitador d'un jutjat de lo civil (Barcelona). Portable i offline. Python 3.13 + PySide6 + SQLite (WAL).
-- **Versió**: 4.5 | **Data**: 2026-10-28 | **Build**: pendent (usuari)
-- **Sprint actual**: v4.5 lliurat (camp CAT a tramitació: expedients en català)
+- **Versió**: 4.6 | **Data**: 2026-10-28 | **Build**: pendent (usuari)
+- **Sprint actual**: v4.6 lliurat (filtre CAT a Gestió de Tramitació: veure només expediments en català)
 - **Document de millores**: `JMEJCat_Millores_Definitives.md` (full de ruta tècnic)
 - **Handover per a l'equip següent**: `HANDOVER.md` (resum executiu + pròxims pasos)
 - **Repo**: https://github.com/JosepM64/JMEjcat (públic, branch `main`)

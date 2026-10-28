@@ -1,6 +1,14 @@
 # Changelog - JMEJCat
 
-## v4.5 (2026-10-28)
+## v4.6 (2026-10-28)
+
+### Filtre "CAT" a Gestió de Tramitació
+- Nou botó toggle "CAT" a la barra de filtres de `tramitacio_window.py` (al costat de Color).
+- Activat, mostra només els expediments amb `catalan = 1` (filtre a `get_all_tramits` / `search_tramits`).
+- Estil verd quan està actiu; el botó "Netejar" el desmarca.
+- La columna `catalan` ja existia des de v4.5 (migració defensiva `ALTER TABLE` per BD existents).
+
+---\n\n## v4.5 (2026-10-28)
 
 ### Camp CAT (tramitar en català) als expedients de Tramitació
 - BD: nova columna `catalan INTEGER DEFAULT 0` a la taula `tramitacio` (migració defensiva `ALTER TABLE` per a BD existents). `create_tramit`, `update_tramit` i `upsert_tramit` accepten `catalan: int = 0`.

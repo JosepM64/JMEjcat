@@ -258,6 +258,7 @@ class TramitacioDatabase(BaseDatabase):
     def get_all_tramits(
         self,
         color_filter: str | None = None,
+        catalan_filter: bool | None = None,
         limit: int | None = 200,
         offset: int | None = 0,
     ) -> list[dict[str, Any]]:
@@ -265,6 +266,7 @@ class TramitacioDatabase(BaseDatabase):
 
         Args:
             color_filter: Filtre opcional per color.
+            catalan_filter: Si True, només tràmits en català (catalan = 1).
             limit: Nombre màxim de tràmits a retornar (None = sense límit).
             offset: Desplaçament per a paginació.
         """
@@ -272,9 +274,14 @@ class TramitacioDatabase(BaseDatabase):
             cursor = conn.cursor()
             query = "SELECT * FROM tramitacio"
             params: list[Any] = []
+            conditions: list[str] = []
             if color_filter:
-                query += " WHERE color = ?"
+                conditions.append("color = ?")
                 params.append(color_filter)
+            if catalan_filter:
+                conditions.append("catalan = 1")
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
             query += " ORDER BY updated_at DESC"
             if limit is not None:
                 query += " LIMIT ?"
@@ -294,6 +301,7 @@ class TramitacioDatabase(BaseDatabase):
         any: int | None = None,
         color_filter: str | None = None,
         data: str | None = None,
+        catalan_filter: bool | None = None,
         limit: int | None = None,
         offset: int | None = 0,
     ) -> list[dict[str, Any]]:
@@ -317,6 +325,9 @@ class TramitacioDatabase(BaseDatabase):
             if color_filter:
                 query += " AND color = ?"
                 params.append(color_filter)
+
+            if catalan_filter:
+                query += " AND catalan = 1"
 
             if data:
                 query += " AND data = ?"

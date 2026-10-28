@@ -107,6 +107,15 @@ class TramitacioWindow(QDialog):
         self.color_filter.currentIndexChanged.connect(self.on_search_changed)
         search_layout.addWidget(self.color_filter)
 
+        # Botó de filtre "CAT" — només tràmits en català (v4.6)
+        self.btn_catalan = QPushButton("CAT")
+        self.btn_catalan.setCheckable(True)
+        self.btn_catalan.setFixedSize(45, 28)
+        self.btn_catalan.setToolTip("Mostrar només tràmits en català")
+        self.btn_catalan.toggled.connect(self._on_catalan_toggled)
+        self.btn_catalan.toggled.connect(self.on_search_changed)
+        search_layout.addWidget(self.btn_catalan)
+
         # Botó per esborrar filtres
         self.btn_clear_filters = QPushButton("Netejar")
         self.btn_clear_filters.clicked.connect(self.clear_filters)
@@ -201,6 +210,7 @@ class TramitacioWindow(QDialog):
             numero = self.search_numero.text().strip()
             any_text = self.search_any.text().strip()
             color_filter = self.color_filter.currentData()
+            catalan_filter = self.btn_catalan.isChecked()
             data_filter = None
             if hasattr(self, "btn_today") and self.btn_today.isChecked():
                 data_filter = QDate.currentDate().toString("dd/MM/yyyy")
@@ -209,10 +219,12 @@ class TramitacioWindow(QDialog):
             if any_text.isdigit():
                 any_val = int(any_text)
 
-            if numero or any_val or color_filter or data_filter:
-                tramits = self.db.search_tramits(numero, any_val, color_filter, data_filter)
+            if numero or any_val or color_filter or catalan_filter or data_filter:
+                tramits = self.db.search_tramits(
+                    numero, any_val, color_filter, data_filter, catalan_filter
+                )
             else:
-                tramits = self.db.get_all_tramits(color_filter)
+                tramits = self.db.get_all_tramits(color_filter, catalan_filter)
 
             self.table.setRowCount(len(tramits))
 
@@ -369,11 +381,20 @@ class TramitacioWindow(QDialog):
         """Gestiona el canvi al cercador."""
         self.load_data()
 
+    def _on_catalan_toggled(self, checked: bool) -> None:
+        """Canvia l'estil visual del botó CAT segons estat."""
+        self.btn_catalan.setStyleSheet(
+            "background-color: #4CAF50; color: white; font-weight: bold;"
+            if checked
+            else ""
+        )
+
     def clear_filters(self):
         """Esborra tots els filtres de cerca."""
         self.search_numero.clear()
         self.search_any.clear()
         self.color_filter.setCurrentIndex(0)  # "Tots" colors
+        self.btn_catalan.setChecked(False)
         if hasattr(self, "btn_today"):
             self.btn_today.setChecked(False)
 

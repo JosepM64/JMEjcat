@@ -429,6 +429,11 @@ class MainWindow(
 
         <p>Llicència: LGPL v3</p>
 
+        <h3>Novetats v4.6:</h3>
+        <ul>
+            <li>Filtre «CAT» a Gestió de Tramitació: veure només expediments en català</li>
+        </ul>
+
         <h3>Novetats v4.5:</h3>
         <ul>
             <li>Botó CAT als expedients de Tramitació: marca si es tramita en català (verd) o no (gris)</li>
